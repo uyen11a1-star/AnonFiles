@@ -482,9 +482,16 @@ class AiChatActivity : AppCompatActivity() {
         return when (ext) {
             "html", "htm" -> "text/html"
             "svg" -> "image/svg+xml"
-            "png", "jpg", "jpeg", "gif", "webp" -> "image/$ext"
+            "png", "jpg", "jpeg", "gif", "webp", "bmp" -> "image/$ext"
             "md", "markdown" -> "text/markdown"
             "pdf" -> "application/pdf"
+            "json" -> "application/json"
+            "xml" -> "application/xml"
+            "yml", "yaml" -> "text/yaml"
+            "txt", "log" -> "text/plain"
+            "kt", "kts", "java", "py", "sh", "bash", "js", "ts", "cpp", "c", "h",
+            "cs", "rs", "go", "rb", "php", "swift", "sql", "gradle", "toml",
+            "ini", "cfg", "properties" -> "text/x-code"
             else -> null
         }
     }

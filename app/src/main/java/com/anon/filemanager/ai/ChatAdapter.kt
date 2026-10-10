@@ -51,9 +51,14 @@ class ChatAdapter(
     class ArtVH(v: View) : RecyclerView.ViewHolder(v) {
         val head: TextView = v.findViewById(R.id.artHead)
         val meta: TextView = v.findViewById(R.id.artMeta)
+        val icon: TextView = v.findViewById(R.id.artIcon)
         val web: WebView = v.findViewById(R.id.artWeb)
         val img: ImageView = v.findViewById(R.id.artImg)
+        val codeScroll: View = v.findViewById(R.id.artCodeScroll)
+        val code: TextView = v.findViewById(R.id.artCode)
+        val pdfPage: ImageView = v.findViewById(R.id.artPdfPage)
         val open: View = v.findViewById(R.id.artOpen)
+        val copy: View = v.findViewById(R.id.artCopy)
     }
 
     override fun getItemViewType(position: Int): Int = when (items[position].type) {
@@ -121,45 +126,154 @@ class ChatAdapter(
                 )
             }
 
-            is ArtVH -> {
-                holder.head.text = "🎨 ${m.toolName ?: "artifact"}"
-                holder.meta.text = m.toolArgs ?: ""
-                val path = m.artifactPath
-                val mime = m.artifactMime ?: ""
+            is ArtVH -> bindArtifact(holder, m)
+        }
+    }
 
-                holder.web.visibility = View.GONE
-                holder.img.visibility = View.GONE
-                holder.web.settings.javaScriptEnabled = true
-                holder.web.settings.loadWithOverviewMode = true
-                holder.web.settings.useWideViewPort = true
-                holder.web.settings.builtInZoomControls = true
-                holder.web.settings.displayZoomControls = false
-                holder.web.webViewClient = WebViewClient()
+    private fun bindArtifact(holder: ArtVH, m: ChatMessage) {
+        val path = m.artifactPath
+        val mime = m.artifactMime ?: ""
+        val ext = if (path != null) File(path).extension.lowercase() else ""
+        val f = if (path != null) File(path) else null
 
-                if (path != null && File(path).exists()) {
-                    when {
-                        mime.contains("html") -> {
-                            holder.web.visibility = View.VISIBLE
-                            val html = File(path).readText()
-                            holder.web.loadDataWithBaseURL(
-                                File(path).parentFile?.toURI()?.toString(),
-                                html, "text/html", "utf-8", null
+        // Reset visibility
+        holder.web.visibility = View.GONE
+        holder.img.visibility = View.GONE
+        holder.codeScroll.visibility = View.GONE
+        holder.pdfPage.visibility = View.GONE
+
+        holder.head.text = m.toolName ?: "artifact"
+        holder.meta.text = path ?: ""
+
+        // Icon theo loại
+        holder.icon.text = when {
+            mime.contains("html") -> "🌐"
+            ext == "svg" -> "🎨"
+            mime.startsWith("image/") -> "🖼"
+            ext == "pdf" -> "📄"
+            ext in setOf("kt","java","py","sh","js","ts","cpp","c","h","cs","rs","go","rb","php","swift") -> "💻"
+            ext in setOf("json","xml","yml","yaml") -> "📋"
+            ext in setOf("md","markdown") -> "📝"
+            else -> "📄"
+        }
+
+        if (f == null || !f.exists()) {
+            holder.meta.text = "File không tồn tại: $path"
+            holder.open.setOnClickListener { path?.let { onOpenArtifact(it) } }
+            holder.copy.visibility = View.GONE
+            return
+        }
+
+        holder.copy.visibility = View.VISIBLE
+
+        // WebView setup (cho HTML/MD/SVG)
+        holder.web.settings.javaScriptEnabled = true
+        holder.web.settings.loadWithOverviewMode = true
+        holder.web.settings.useWideViewPort = true
+        holder.web.settings.builtInZoomControls = true
+        holder.web.settings.displayZoomControls = false
+        holder.web.webViewClient = WebViewClient()
+
+        when {
+            mime.contains("html") || ext in setOf("html","htm") -> {
+                holder.web.visibility = View.VISIBLE
+                val html = runCatching { f.readText() }.getOrElse { "<p>Không đọc được file</p>" }
+                holder.web.loadDataWithBaseURL(
+                    f.parentFile?.toURI()?.toString(),
+                    html, "text/html", "utf-8", null
+                )
+            }
+
+            ext == "svg" -> {
+                holder.web.visibility = View.VISIBLE
+                val svg = runCatching { f.readText() }.getOrElse { "" }
+                val wrapped = """
+                    <!doctype html><html><head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                    <style>body{margin:0;padding:10px;background:#FAFAFE;text-align:center}svg{max-width:100%;height:auto}</style>
+                    </head><body>$svg</body></html>
+                """.trimIndent()
+                holder.web.loadDataWithBaseURL(null, wrapped, "text/html", "utf-8", null)
+            }
+
+            ext in setOf("md","markdown") -> {
+                holder.web.visibility = View.VISIBLE
+                val md = runCatching { f.readText() }.getOrElse { "" }
+                val html = com.anon.filemanager.preview.Markdown.toHtml(md)
+                holder.web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+            }
+
+            mime.startsWith("image/") || ext in setOf("png","jpg","jpeg","gif","webp","bmp") -> {
+                holder.img.visibility = View.VISIBLE
+                try { holder.img.setImageURI(Uri.fromFile(f)) }
+                catch (_: Exception) { holder.img.setImageResource(android.R.drawable.ic_menu_gallery) }
+            }
+
+            ext == "pdf" -> {
+                holder.pdfPage.visibility = View.VISIBLE
+                holder.pdfPage.setImageResource(android.R.drawable.ic_menu_gallery)
+                // Render trang 1 ở background
+                Thread {
+                    try {
+                        val pfd = android.os.ParcelFileDescriptor.open(f, android.os.ParcelFileDescriptor.MODE_READ_ONLY)
+                        val renderer = android.graphics.pdf.PdfRenderer(pfd)
+                        if (renderer.pageCount > 0) {
+                            val page = renderer.openPage(0)
+                            val scale = 2
+                            val bmp = android.graphics.Bitmap.createBitmap(
+                                page.width * scale, page.height * scale,
+                                android.graphics.Bitmap.Config.ARGB_8888
                             )
+                            bmp.eraseColor(android.graphics.Color.WHITE)
+                            page.render(bmp, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            page.close(); renderer.close(); pfd.close()
+                            holder.pdfPage.post {
+                                holder.pdfPage.setImageBitmap(bmp)
+                            }
                         }
-                        mime.startsWith("image/") -> {
-                            holder.img.visibility = View.VISIBLE
-                            holder.img.setImageURI(Uri.fromFile(File(path)))
-                        }
-                        else -> {
-                            holder.img.visibility = View.VISIBLE
-                            holder.img.setImageResource(android.R.drawable.ic_menu_agenda)
-                        }
-                    }
-                } else {
-                    holder.meta.text = "File không tồn tại: $path"
-                }
+                    } catch (_: Exception) {}
+                }.start()
+            }
 
-                holder.open.setOnClickListener { path?.let { onOpenArtifact(it) } }
+            ext in setOf("kt","java","py","sh","js","ts","cpp","c","h","cs","rs","go","rb","php","swift",
+                         "json","xml","yml","yaml","txt","log","ini","cfg","properties","gradle","toml","sql") -> {
+                holder.codeScroll.visibility = View.VISIBLE
+                val txt = runCatching {
+                    if (f.length() > 100_000) f.readText().take(100_000) + "\n\n[...cắt bớt]"
+                    else f.readText()
+                }.getOrElse { "(không đọc được)" }
+                val lang = when (ext) {
+                    "kt","kts" -> "kotlin"
+                    "js","ts" -> "javascript"
+                    "html","htm" -> "html"
+                    "xml" -> "xml"
+                    "json" -> "json"
+                    "sh","bash" -> "bash"
+                    "py" -> "python"
+                    "md","markdown" -> "markdown"
+                    else -> ext
+                }
+                holder.code.text = SyntaxHighlighter.highlight(txt, lang)
+            }
+
+            else -> {
+                // Fallback: đọc như text
+                holder.codeScroll.visibility = View.VISIBLE
+                val txt = runCatching { f.readText().take(50_000) }.getOrElse { "(binary)" }
+                holder.code.text = txt
+            }
+        }
+
+        holder.open.setOnClickListener { path?.let { onOpenArtifact(it) } }
+        holder.copy.setOnClickListener {
+            try {
+                val cm = holder.itemView.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                    as android.content.ClipboardManager
+                val content = f.readText().take(100_000)
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("artifact", content))
+                android.widget.Toast.makeText(holder.itemView.context, "Đã copy nội dung file", android.widget.Toast.LENGTH_SHORT).show()
+            } catch (_: Exception) {
+                android.widget.Toast.makeText(holder.itemView.context, "Không copy được", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
     }
