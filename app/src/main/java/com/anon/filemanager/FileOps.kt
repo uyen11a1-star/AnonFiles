@@ -8,6 +8,7 @@ import android.os.Environment
 import androidx.core.content.FileProvider
 import net.lingala.zip4j.ZipFile
 import net.lingala.zip4j.model.ZipParameters
+import net.lingala.zip4j.model.enums.CompressionLevel
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -101,7 +102,7 @@ object FileOps {
     fun zipTo(sources: List<String>, outZip: String): String {
         return try {
             val zip = ZipFile(outZip)
-            val params = ZipParameters().apply { compressionLevel = 5 }
+            val params = ZipParameters().apply { compressionLevel = CompressionLevel.NORMAL }
             sources.forEach { s ->
                 val f = File(s)
                 if (f.isDirectory) zip.addFolder(f, params) else zip.addFile(f, params)
