@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.util.Log
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
@@ -207,16 +208,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun listViaShell(path: String): List<FileItem> {
-        // Dịch path FUSE -> underlying /data/media/0 để bypass SAF
+        // Dịch path FUSE -> /data/media/0
         val realPath = ShizukuShell.translate(path)
+        Log.d("AnonFiles", "listViaShell: FUSE=$path  REAL=$realPath")
+
+        // Kiểm tra path có tồn tại không
+        val check = ShizukuShell.exec("ls -d ${ShizukuShell.quote(realPath)} 2>&1")
+        if (!check.contains(realPath)) {
+            val msg = "Không truy cập được: $realPath\n$check"
+            Log.e("AnonFiles", msg)
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+            return emptyList()
+        }
+
+        // List với đường dẫn raw
         val out = ShizukuShell.exec("ls -la ${ShizukuShell.quote(realPath)} 2>&1")
+        Log.d("AnonFiles", "ls output: $out")
 
         if (out.startsWith("ERR:")) {
             Toast.makeText(this, out, Toast.LENGTH_LONG).show()
-            return emptyList()
-        }
-        if (out.isBlank()) {
-            Toast.makeText(this, "Thư mục trống hoặc không có quyền: $realPath", Toast.LENGTH_LONG).show()
             return emptyList()
         }
 

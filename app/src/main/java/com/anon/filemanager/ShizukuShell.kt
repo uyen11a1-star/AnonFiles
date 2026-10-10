@@ -2,20 +2,19 @@ package com.anon.filemanager
 
 import android.content.pm.PackageManager
 import rikka.shizuku.Shizuku
-import java.io.File
 import java.lang.reflect.Method
 
 object ShizukuShell {
 
     private var cachedMethod: Method? = null
 
-    // Dịch path từ FUSE (/storage/emulated/0) sang underlying (/data/media/0)
-    // để bypass SAF restriction trên Android 11+
+    // Dịch FUSE path -> underlying raw path để bypass scoped storage
+    // /storage/emulated/0/... -> /data/media/0/...
     fun translate(path: String): String {
         return path
-            .replace("/storage/emulated/0/Android/", "/data/media/0/Android/")
             .replace("/storage/emulated/0/", "/data/media/0/")
-            .replace("/storage/self/primary/Android/", "/data/media/0/Android/")
+            .replace("/storage/self/primary/", "/data/media/0/")
+            .replace("/sdcard/", "/data/media/0/")
     }
 
     fun isRunning(): Boolean = try { Shizuku.pingBinder() } catch (e: Throwable) { false }
@@ -28,33 +27,43 @@ object ShizukuShell {
         if (cachedMethod != null) return cachedMethod
         return try {
             val cls = Class.forName("rikka.shizuku.Shizuku")
-            val sigs = listOf<Array<Class<*>>>(
-                arrayOf(Array<String>::class.java, Array<String>::class.java, String::class.java),
-                arrayOf(Array<String>::class.java, Array<String>::class.java, File::class.java),
-                arrayOf(Array<String>::class.java, Array<String>::class.java, Array<String>::class.java)
+            // Signature đúng: newProcess(String[] cmd, String[] env, String dir)
+            val m = cls.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java
             )
-            for (sig in sigs) {
-                try {
-                    val m = cls.getDeclaredMethod("newProcess", *sig)
-                    m.isAccessible = true
-                    cachedMethod = m
-                    return m
-                } catch (_: NoSuchMethodException) { }
-            }
-            null
-        } catch (e: Throwable) { null }
+            m.isAccessible = true
+            cachedMethod = m
+            m
+        } catch (e: Throwable) {
+            // Fallback: thử signature với File
+            try {
+                val cls = Class.forName("rikka.shizuku.Shizuku")
+                val m = cls.getDeclaredMethod(
+                    "newProcess",
+                    Array<String>::class.java,
+                    Array<String>::class.java,
+                    java.io.File::class.java
+                )
+                m.isAccessible = true
+                cachedMethod = m
+                m
+            } catch (e2: Throwable) { null }
+        }
     }
 
     fun exec(cmd: String): String {
         if (!isRunning()) return "ERR: Shizuku chưa chạy"
         if (!isGranted()) return "ERR: Chưa cấp quyền Shizuku"
-        val method = findMethod() ?: return "ERR: Shizuku API không tương thích"
+        val method = findMethod() ?: return "ERR: Shizuku API không tương thích — cần Shizuku v13.1.5+"
         return try {
             val proc = method.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
             val out = proc.inputStream.bufferedReader().use { it.readText() }
             val err = proc.errorStream.bufferedReader().use { it.readText() }
             proc.waitFor()
-            if (out.isNotBlank()) out else err
+            if (out.isNotBlank()) out else if (err.isNotBlank()) err else ""
         } catch (e: Throwable) {
             "ERR: ${e.javaClass.simpleName}: ${e.message}"
         }
