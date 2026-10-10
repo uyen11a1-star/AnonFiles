@@ -4,4 +4,6 @@
         android:icon="@android:drawable/ic_menu_add" android:showAsAction="ifRoom"/>
     <item android:id="@+id/action_refresh" android:title="Làm mới"
         android:icon="@android:drawable/ic_menu_rotate" android:showAsAction="ifRoom"/>
+    <item android:id="@+id/action_test_shell" android:title="Test Shizuku"
+        android:icon="@android:drawable/ic_menu_manage" android:showAsAction="never"/>
 </menu>

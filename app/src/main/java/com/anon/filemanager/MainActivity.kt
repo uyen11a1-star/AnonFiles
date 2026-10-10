@@ -13,6 +13,7 @@ import android.os.Environment
 import android.provider.Settings
 import android.util.Log
 import android.widget.EditText
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.addCallback
@@ -79,6 +80,7 @@ class MainActivity : AppCompatActivity() {
             when (item.itemId) {
                 R.id.action_new_folder -> { newFolderDialog(); true }
                 R.id.action_refresh -> { refresh(); true }
+                R.id.action_test_shell -> { runShellDiagnostic(); true }
                 else -> false
             }
         }
@@ -104,6 +106,52 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onResume() { super.onResume(); updateStatusBar() }
+
+    // ============ SHELL DIAGNOSTIC ============
+    private fun runShellDiagnostic() {
+        val sb = StringBuilder()
+        sb.append("=== Shizuku state ===\n")
+        sb.append("isRunning: ${ShizukuShell.isRunning()}\n")
+        sb.append("isGranted: ${ShizukuShell.isGranted()}\n")
+        sb.append("Shizuku version: ")
+        try { sb.append(Shizuku.getVersion()) } catch (e: Throwable) { sb.append("ERR ${e.message}") }
+        sb.append("\n\n")
+
+        val cmds = listOf(
+            "id",
+            "ls -d /data/media/0/Android/data",
+            "ls /data/media/0/Android/data | head -5",
+            "ls -d /storage/emulated/0/Android/data",
+            "ls /storage/emulated/0/Android/data | head -5",
+            "echo SHIZUKU_TEST_OK"
+        )
+        for (c in cmds) {
+            sb.append("$ $c\n")
+            val out = ShizukuShell.exec(c)
+            sb.append(out.trim().ifEmpty { "(rỗng)" })
+            sb.append("\n---\n")
+        }
+
+        val textView = TextView(this).apply {
+            text = sb.toString()
+            setPadding(40, 40, 40, 40)
+            textSize = 11f
+            setTextIsSelectable(true)
+            typeface = android.graphics.Typeface.MONOSPACE
+        }
+        val scroll = ScrollView(this).apply { addView(textView) }
+        AlertDialog.Builder(this)
+            .setTitle("Shizuku Shell Test")
+            .setView(scroll)
+            .setPositiveButton("OK", null)
+            .setNeutralButton("Copy") { _, _ ->
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("diag", sb.toString()))
+                Toast.makeText(this, "Đã copy", Toast.LENGTH_SHORT).show()
+            }
+            .show()
+    }
+    // ==========================================
 
     private fun handleNav(id: Int) {
         val base = Environment.getExternalStorageDirectory()
@@ -208,22 +256,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun listViaShell(path: String): List<FileItem> {
-        // Dịch path FUSE -> /data/media/0
         val realPath = ShizukuShell.translate(path)
-        Log.d("AnonFiles", "listViaShell: FUSE=$path  REAL=$realPath")
-
-        // Kiểm tra path có tồn tại không
-        val check = ShizukuShell.exec("ls -d ${ShizukuShell.quote(realPath)} 2>&1")
-        if (!check.contains(realPath)) {
-            val msg = "Không truy cập được: $realPath\n$check"
-            Log.e("AnonFiles", msg)
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-            return emptyList()
-        }
-
-        // List với đường dẫn raw
         val out = ShizukuShell.exec("ls -la ${ShizukuShell.quote(realPath)} 2>&1")
-        Log.d("AnonFiles", "ls output: $out")
+        Log.d("AnonFiles", "listViaShell path=$realPath out=$out")
 
         if (out.startsWith("ERR:")) {
             Toast.makeText(this, out, Toast.LENGTH_LONG).show()
