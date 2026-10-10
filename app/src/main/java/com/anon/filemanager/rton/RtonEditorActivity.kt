@@ -74,6 +74,7 @@ class RtonEditorActivity : AppCompatActivity() {
                     Toast.makeText(this, "Đã copy", Toast.LENGTH_SHORT).show()
                 }
             if (msg.contains("RTON mới")) {
+                builder.setNeutralButton("Xuất hex 4KB") { _, _ -> dumpHex4k() }
                 builder.setNegativeButton("Mở web editor") { _, _ ->
                     try {
                         startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
@@ -228,6 +229,58 @@ class RtonEditorActivity : AppCompatActivity() {
                 v.entries.entries.joinToString(",\n", "{\n", "\n$pad}") { (k, vv) ->
                     "$pad  \"$k\": ${toJson(vv, indent + 1)}"
                 }
+        }
+    }
+
+    private fun dumpHex4k() {
+        try {
+            val srcFile: File = if (com.anon.filemanager.FileOps.isProtected(filePath)) {
+                val extCache = getExternalFilesDir("cache") ?: cacheDir
+                if (!extCache.exists()) extCache.mkdirs()
+                val f = File(extCache, File(filePath).name)
+                val real = com.anon.filemanager.ShizukuShell.translate(filePath)
+                com.anon.filemanager.ShizukuShell.exec("cp ${'$'}{com.anon.filemanager.ShizukuShell.quote(real)} ${'$'}{com.anon.filemanager.ShizukuShell.quote(f.absolutePath)} 2>&1")
+                if (!f.exists()) error("Copy cache thất bại")
+                f
+            } else File(filePath)
+
+            val buf = ByteArray(4096)
+            var read = 0
+            srcFile.inputStream().use { ins ->
+                var n: Int
+                while (read < 4096 && ins.read(buf, read, 4096 - read).also { n = it } > 0) read += n
+            }
+            val bytes = buf.copyOf(read)
+
+            val sb = StringBuilder()
+            sb.append("File: ").append(filePath).append("\n")
+            sb.append("Size: ").append(srcFile.length()).append("\n")
+            sb.append("Dump: ").append(bytes.size).append(" bytes đầu\n\n")
+
+            for (i in bytes.indices step 16) {
+                sb.append(String.format(java.util.Locale.US, "%08X  ", i))
+                for (j in 0 until 16) {
+                    if (i + j < bytes.size) sb.append(String.format(java.util.Locale.US, "%02X ", bytes[i + j].toInt() and 0xFF))
+                    else sb.append("   ")
+                    if (j == 7) sb.append(" ")
+                }
+                sb.append(" |")
+                for (j in 0 until 16) {
+                    if (i + j < bytes.size) {
+                        val c = bytes[i + j].toInt() and 0xFF
+                        sb.append(if (c in 32..126) c.toChar() else '.')
+                    }
+                }
+                sb.append("|\n")
+            }
+
+            val outDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+            if (!outDir.exists()) outDir.mkdirs()
+            val outFile = File(outDir, "pp_hex.txt")
+            outFile.writeText(sb.toString())
+            android.widget.Toast.makeText(this, "Đã lưu:\n${'$'}{outFile.absolutePath}", android.widget.Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(this, "Lỗi dump: ${'$'}{e.message}", android.widget.Toast.LENGTH_LONG).show()
         }
     }
 
