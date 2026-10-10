@@ -312,7 +312,7 @@ class ChatAdapter(
                                 if (empty) sb.append("⚠ Nội dung rỗng\n")
                                 holder.healthText.text = sb.toString().trim()
                                 holder.healthFix.setOnClickListener {
-                                    onFixArtifact?.invoke(path, sb.toString().trim())
+                                    path?.let { onFixArtifact?.invoke(it, sb.toString().trim()) }
                                 }
                             } else {
                                 holder.healthDot.setTextColor(0xFF059669.toInt())
