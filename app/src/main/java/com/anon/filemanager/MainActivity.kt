@@ -168,7 +168,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestShizuku() {
         if (!ShizukuShell.isRunning()) {
-            Toast.makeText(this, "Shizuku chưa chạy. Mở app Shizuku và start service.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Shizuku chưa chạy.", Toast.LENGTH_LONG).show()
             return
         }
         if (ShizukuShell.isGranted()) {
@@ -207,11 +207,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun listViaShell(path: String): List<FileItem> {
-        val out = ShizukuShell.exec("ls -la ${ShizukuShell.quote(path)} 2>&1")
+        // Dịch path FUSE -> underlying /data/media/0 để bypass SAF
+        val realPath = ShizukuShell.translate(path)
+        val out = ShizukuShell.exec("ls -la ${ShizukuShell.quote(realPath)} 2>&1")
+
         if (out.startsWith("ERR:")) {
             Toast.makeText(this, out, Toast.LENGTH_LONG).show()
             return emptyList()
         }
+        if (out.isBlank()) {
+            Toast.makeText(this, "Thư mục trống hoặc không có quyền: $realPath", Toast.LENGTH_LONG).show()
+            return emptyList()
+        }
+
         val result = mutableListOf<FileItem>()
         for (raw in out.lines()) {
             val line = raw.trim()
@@ -232,8 +240,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun onItemClick(item: FileItem) {
         if (!item.isDirectory) return
-        val newPath = File(currentPath, item.name).absolutePath
-        currentPath = newPath
+        currentPath = File(currentPath, item.name).absolutePath
         refresh()
     }
 
@@ -259,7 +266,9 @@ class MainActivity : AppCompatActivity() {
                 val n = edit.text.toString().trim()
                 if (n.isEmpty()) return@setPositiveButton
                 if (isInProtected(currentPath)) {
-                    val res = ShizukuShell.exec("mv ${ShizukuShell.quote(item.file.absolutePath)} ${ShizukuShell.quote(File(currentPath, n).absolutePath)}")
+                    val src = ShizukuShell.translate(item.file.absolutePath)
+                    val dst = ShizukuShell.translate(File(currentPath, n).absolutePath)
+                    val res = ShizukuShell.exec("mv ${ShizukuShell.quote(src)} ${ShizukuShell.quote(dst)}")
                     if (res.startsWith("ERR:")) Toast.makeText(this, res, Toast.LENGTH_LONG).show()
                     else refresh()
                 } else {
@@ -274,7 +283,8 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this).setTitle("Xóa?").setMessage("Xóa vĩnh viễn: ${item.name}")
             .setPositiveButton("Xóa") { _, _ ->
                 if (isInProtected(currentPath)) {
-                    val res = ShizukuShell.exec("rm -rf ${ShizukuShell.quote(item.file.absolutePath)}")
+                    val p = ShizukuShell.translate(item.file.absolutePath)
+                    val res = ShizukuShell.exec("rm -rf ${ShizukuShell.quote(p)}")
                     if (res.startsWith("ERR:")) Toast.makeText(this, res, Toast.LENGTH_LONG).show()
                     else { Toast.makeText(this, "Đã xóa", Toast.LENGTH_SHORT).show(); refresh() }
                 } else {
@@ -293,7 +303,8 @@ class MainActivity : AppCompatActivity() {
                 if (n.isEmpty()) return@setPositiveButton
                 val target = File(currentPath, n).absolutePath
                 if (isInProtected(currentPath)) {
-                    val res = ShizukuShell.exec("mkdir -p ${ShizukuShell.quote(target)}")
+                    val p = ShizukuShell.translate(target)
+                    val res = ShizukuShell.exec("mkdir -p ${ShizukuShell.quote(p)}")
                     if (res.startsWith("ERR:")) Toast.makeText(this, res, Toast.LENGTH_LONG).show()
                     else refresh()
                 } else {

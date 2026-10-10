@@ -9,6 +9,15 @@ object ShizukuShell {
 
     private var cachedMethod: Method? = null
 
+    // Dịch path từ FUSE (/storage/emulated/0) sang underlying (/data/media/0)
+    // để bypass SAF restriction trên Android 11+
+    fun translate(path: String): String {
+        return path
+            .replace("/storage/emulated/0/Android/", "/data/media/0/Android/")
+            .replace("/storage/emulated/0/", "/data/media/0/")
+            .replace("/storage/self/primary/Android/", "/data/media/0/Android/")
+    }
+
     fun isRunning(): Boolean = try { Shizuku.pingBinder() } catch (e: Throwable) { false }
 
     fun isGranted(): Boolean = try {
@@ -39,7 +48,7 @@ object ShizukuShell {
     fun exec(cmd: String): String {
         if (!isRunning()) return "ERR: Shizuku chưa chạy"
         if (!isGranted()) return "ERR: Chưa cấp quyền Shizuku"
-        val method = findMethod() ?: return "ERR: Shizuku API không tương thích — thử update Shizuku"
+        val method = findMethod() ?: return "ERR: Shizuku API không tương thích"
         return try {
             val proc = method.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
             val out = proc.inputStream.bufferedReader().use { it.readText() }
