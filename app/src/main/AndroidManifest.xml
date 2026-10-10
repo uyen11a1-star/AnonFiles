@@ -34,6 +34,18 @@
         <activity android:name=".TextEditorActivity"
             android:exported="false"
             android:label="Text Editor" />
+        <activity android:name=".ArchivePreviewActivity"
+            android:exported="false"
+            android:label="Archive Preview" />
+        <activity android:name=".HexViewActivity"
+            android:exported="false"
+            android:label="Hex Viewer" />
+        <activity android:name=".rton.RtonEditorActivity"
+            android:exported="false"
+            android:label="RTON Editor" />
+        <activity android:name=".preview.PreviewActivity"
+            android:exported="false"
+            android:label="Preview" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
