@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="@drawable/rainbow_bar">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="AnonFiles ✦" android:textColor="#FFFFFF"
+        android:textSize="22sp" android:textStyle="bold"/>
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="Rainbow File Manager v1.1" android:textColor="#E0FFFFFF"
+        android:textSize="12sp" android:layout_marginTop="6dp"/>
+</LinearLayout>

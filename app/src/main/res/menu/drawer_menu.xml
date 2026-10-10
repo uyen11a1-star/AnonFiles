@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:checkableBehavior="none">
+        <item android:id="@+id/nav_home" android:icon="@android:drawable/ic_menu_view" android:title="Home" />
+        <item android:id="@+id/nav_download" android:icon="@android:drawable/ic_menu_save" android:title="Download" />
+        <item android:id="@+id/nav_pictures" android:icon="@android:drawable/ic_menu_gallery" android:title="Pictures" />
+        <item android:id="@+id/nav_dcim" android:icon="@android:drawable/ic_menu_camera" android:title="DCIM" />
+        <item android:id="@+id/nav_movies" android:icon="@android:drawable/ic_menu_slideshow" android:title="Movies" />
+        <item android:id="@+id/nav_music" android:icon="@android:drawable/ic_lock_silent_mode_off" android:title="Music" />
+        <item android:id="@+id/nav_documents" android:icon="@android:drawable/ic_menu_agenda" android:title="Documents" />
+    </group>
+    <item android:title="Protected">
+        <menu>
+            <item android:id="@+id/nav_data" android:icon="@android:drawable/ic_lock_lock" android:title="Android/data" />
+            <item android:id="@+id/nav_obb" android:icon="@android:drawable/ic_lock_lock" android:title="Android/obb" />
+        </menu>
+    </item>
+    <item android:title="Shizuku">
+        <menu>
+            <item android:id="@+id/nav_shizuku_grant" android:icon="@android:drawable/ic_menu_manage" android:title="Cấp quyền Shizuku" />
+        </menu>
+    </item>
+</menu>

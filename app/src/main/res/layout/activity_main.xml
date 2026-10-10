@@ -1,48 +1,66 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.drawerlayout.widget.DrawerLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@drawable/rainbow_bg">
+    android:layout_height="match_parent">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@drawable/rainbow_bar"
-        app:navigationIcon="@android:drawable/ic_menu_revert"
-        app:title="AnonFiles ✦"
-        app:titleTextColor="#FFFFFF"
-        app:subtitleTextColor="#E0FFFFFF" />
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@drawable/rainbow_bg">
 
-    <TextView android:id="@+id/permStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="10dp"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        android:textColor="#FFFFFF"
-        android:background="#50000000" />
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@drawable/rainbow_bar"
+            app:navigationIcon="@drawable/ic_menu_hamburger"
+            app:title="AnonFiles ✦"
+            app:titleTextColor="#FFFFFF"
+            app:subtitleTextColor="#E0FFFFFF" />
 
-    <TextView android:id="@+id/pathText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_margin="10dp"
-        android:padding="12dp"
-        android:textSize="12sp"
-        android:background="@drawable/path_bar"
-        android:textColor="#FFD1F5"
-        android:maxLines="2"
-        android:ellipsize="middle" />
+        <TextView android:id="@+id/permStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="10dp"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:background="#50000000" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:clipToPadding="false"
-        android:paddingBottom="20dp" />
-</LinearLayout>
+        <TextView android:id="@+id/pathText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            android:padding="12dp"
+            android:textSize="12sp"
+            android:background="@drawable/path_bar"
+            android:textColor="#FFD1F5"
+            android:maxLines="2"
+            android:ellipsize="middle" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:clipToPadding="false"
+            android:paddingBottom="20dp" />
+    </LinearLayout>
+
+    <com.google.android.material.navigation.NavigationView
+        android:id="@+id/navView"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:background="#0F0524"
+        app:headerLayout="@layout/drawer_header"
+        app:menu="@menu/drawer_menu"
+        app:itemIconTint="#FF6EC7"
+        app:itemTextColor="#FFFFFF" />
+</androidx.drawerlayout.widget.DrawerLayout>

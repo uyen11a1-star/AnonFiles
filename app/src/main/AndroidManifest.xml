@@ -8,6 +8,8 @@
         android:maxSdkVersion="29" />
     <application
         android:label="AnonFiles"
+        android:icon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/ic_launcher"
         android:theme="@style/Theme.AnonFiles"
         android:requestLegacyExternalStorage="true">
         <activity android:name=".MainActivity" android:exported="true">
@@ -16,5 +18,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
     </application>
 </manifest>
