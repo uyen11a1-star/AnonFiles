@@ -27,13 +27,19 @@ class FileAdapter(
 
     override fun getItemCount() = items.size
 
-    override fun onBindViewHolder(h: VH, p: Int) {
-        val it = items[p]
-        h.name.text = it.name
-        h.icon.setImageResource(if (it.isDirectory) android.R.drawable.ic_menu_view else android.R.drawable.ic_menu_save)
-        h.meta.text = if (it.isDirectory) "Folder" else "${fmtSize(it.size)}  ·  ${fmtDate(it.lastModified)}"
-        h.itemView.setOnClickListener { onClick(it) }
-        h.itemView.setOnLongClickListener { onLongClick(it); true }
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val item = items[position]
+        holder.name.text = item.name
+        holder.icon.setImageResource(
+            if (item.isDirectory) android.R.drawable.ic_menu_view
+            else android.R.drawable.ic_menu_save
+        )
+        holder.meta.text =
+            if (item.isDirectory) "Folder"
+            else "${fmtSize(item.size)}  ·  ${fmtDate(item.lastModified)}"
+
+        holder.itemView.setOnClickListener { onClick(item) }
+        holder.itemView.setOnLongClickListener { onLongClick(item); true }
     }
 
     private fun fmtSize(b: Long): String {
@@ -44,7 +50,12 @@ class FileAdapter(
         if (mb < 1024) return String.format(Locale.US, "%.1f MB", mb)
         return String.format(Locale.US, "%.1f GB", mb / 1024.0)
     }
-    private fun fmtDate(t: Long) = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(t))
+    private fun fmtDate(t: Long) =
+        SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(t))
 
-    fun update(n: List<FileItem>) { items.clear(); items.addAll(n); notifyDataSetChanged() }
-}
+    fun update(n: List<FileItem>) {
+        items.clear()
+        items.addAll(n)
+        notifyDataSetChanged()
+    }
+} 
