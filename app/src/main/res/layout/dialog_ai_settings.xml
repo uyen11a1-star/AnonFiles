@@ -1,60 +1,92 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="20dp">
+    android:layout_height="wrap_content">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Địa chỉ OmniRoute"
-        android:textSize="12sp"
-        android:textColor="#3A3A5C" />
-    <EditText
-        android:id="@+id/cfgUrl"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="http://127.0.0.1:20128"
-        android:inputType="textUri"
-        android:importantForAutofill="no" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="AI PROVIDER" android:textSize="11sp" android:textStyle="bold"
+            android:textColor="#FF1493" android:letterSpacing="0.1"/>
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="API Key (để trống nếu không cần)"
-        android:textSize="12sp"
-        android:textColor="#3A3A5C" />
-    <EditText
-        android:id="@+id/cfgKey"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="sk-..."
-        android:inputType="textPassword"
-        android:importantForAutofill="no" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:text="Địa chỉ API"
+            android:textSize="12sp" android:textColor="#3A3A5C" />
+        <EditText android:id="@+id/cfgUrl"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="http://127.0.0.1:20128"
+            android:inputType="textUri" android:importantForAutofill="no" />
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="Model"
-        android:textSize="12sp"
-        android:textColor="#3A3A5C" />
-    <EditText
-        android:id="@+id/cfgModel"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="gpt-4o-mini"
-        android:inputType="text"
-        android:importantForAutofill="no" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:text="API Key"
+            android:textSize="12sp" android:textColor="#3A3A5C" />
+        <EditText android:id="@+id/cfgKey"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="sk-..." android:inputType="textPassword"
+            android:importantForAutofill="no" />
 
-    <TextView
-        android:id="@+id/cfgTest"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:textSize="12sp"
-        android:textColor="#3A3A5C"
-        android:fontFamily="monospace" />
-</LinearLayout>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:text="Model"
+            android:textSize="12sp" android:textColor="#3A3A5C" />
+        <EditText android:id="@+id/cfgModel"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="gpt-4o-mini" android:inputType="text"
+            android:importantForAutofill="no" />
+
+        <TextView android:id="@+id/cfgTest"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" android:textSize="12sp"
+            android:textColor="#3A3A5C" android:fontFamily="monospace" />
+
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:layout_marginTop="16dp" android:background="#E5E5F0"/>
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" android:text="GITHUB" android:textSize="11sp"
+            android:textStyle="bold" android:textColor="#FF1493" android:letterSpacing="0.1"/>
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="Personal Access Token (scope: repo)"
+            android:textSize="12sp" android:textColor="#3A3A5C" />
+        <EditText android:id="@+id/cfgGitHubPat"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="ghp_..." android:inputType="textPassword"
+            android:importantForAutofill="no" />
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:text="GitHub username"
+            android:textSize="12sp" android:textColor="#3A3A5C" />
+        <EditText android:id="@+id/cfgGitHubUser"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="username" android:inputType="text"
+            android:importantForAutofill="no" />
+
+        <TextView android:id="@+id/cfgGitHubTest"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" android:textSize="12sp"
+            android:textColor="#3A3A5C" android:fontFamily="monospace" />
+
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:layout_marginTop="16dp" android:background="#E5E5F0"/>
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" android:text="AGENT" android:textSize="11sp"
+            android:textStyle="bold" android:textColor="#FF1493" android:letterSpacing="0.1"/>
+
+        <CheckBox android:id="@+id/cfgAllowShell"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="Cho phép AI chạy shell command"
+            android:textColor="#3A3A5C" android:buttonTint="#FF1493" />
+
+        <CheckBox android:id="@+id/cfgAllowGitHub"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Cho phép AI push lên GitHub"
+            android:textColor="#3A3A5C" android:buttonTint="#FF1493" />
+    </LinearLayout>
+</ScrollView>

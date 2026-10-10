@@ -86,8 +86,55 @@ object AiTools {
             "Mở màn hình preview nội bộ cho file html/pdf/ảnh/text. Dùng khi user muốn xem file.",
             mapOf("path" to ("string" to "Đường dẫn file")),
             listOf("path")))
+        arr.put(tool("run_shell",
+            "Chạy lệnh shell qua Shizuku. Dùng để test code, chạy script, kiểm tra môi trường. " +
+            "Có timeout 30 giây. Chỉ chạy khi user đã cho phép trong Settings.",
+            mapOf(
+                "cmd" to ("string" to "Lệnh shell đầy đủ, ví dụ: python3 /storage/emulated/0/Download/fib.py"),
+                "cwd" to ("string" to "Working directory (tùy chọn)")
+            ),
+            listOf("cmd")))
+        arr.put(tool("github_push_file",
+            "Đẩy 1 file lên GitHub repo (tạo mới hoặc cập nhật). Cần GitHub PAT trong Settings.",
+            mapOf(
+                "repo" to ("string" to "Tên repo (không cần owner)"),
+                "path" to ("string" to "Đường dẫn file trong repo, ví dụ src/main.kt"),
+                "local_path" to ("string" to "Đường dẫn file local để đọc nội dung"),
+                "message" to ("string" to "Commit message")
+            ),
+            listOf("repo","path","local_path","message")))
+        arr.put(tool("github_create_repo",
+            "Tạo repo mới trên GitHub.",
+            mapOf(
+                "name" to ("string" to "Tên repo"),
+                "description" to ("string" to "Mô tả ngắn"),
+                "private" to ("boolean" to "true nếu muốn private")
+            ),
+            listOf("name")))
+        arr.put(tool("github_list_files",
+            "Liệt kê file trong repo GitHub.",
+            mapOf(
+                "repo" to ("string" to "Tên repo"),
+                "path" to ("string" to "Đường dẫn thư mục trong repo (để trống = root)")
+            ),
+            listOf("repo")))
+        arr.put(tool("github_get_file",
+            "Đọc nội dung 1 file trên GitHub.",
+            mapOf(
+                "repo" to ("string" to "Tên repo"),
+                "path" to ("string" to "Đường dẫn file trong repo")
+            ),
+            listOf("repo","path")))
+        arr.put(tool("list_github_repos",
+            "Liệt kê các repo GitHub của user (đã cấu hình PAT).",
+            emptyMap(),
+            emptyList()))
         return arr
     }
+
+    // Cờ từ settings — activity set khi mở chat
+    var allowShell: Boolean = false
+    var allowGitHub: Boolean = false
 
     // Callback để activity mở PreviewActivity khi AI gọi open_preview
     var onOpenPreview: ((String) -> Unit)? = null
@@ -108,8 +155,83 @@ object AiTools {
                 onOpenPreview?.invoke(p)
                 "OK: đã mở preview cho $p"
             }
+            "run_shell" -> runShell(args)
+            "github_push_file" -> githubPush(args)
+            "github_create_repo" -> githubCreateRepo(args)
+            "github_list_files" -> githubListFiles(args)
+            "github_get_file" -> githubGetFile(args)
+            "list_github_repos" -> listGithubRepos()
             else -> "ERR: tool không hỗ trợ: $name"
         }
+    }
+
+    // ============ SHELL ============
+
+    private fun runShell(a: JSONObject): String {
+        if (!allowShell) return "ERR: AI chưa được cấp quyền chạy shell. Bật trong Settings."
+        if (!ShizukuShell.isGranted()) return "ERR: cần Shizuku"
+        val cmd = a.getString("cmd")
+        val cwd = a.optString("cwd", "").ifBlank { "/storage/emulated/0" }
+        val wrapped = "cd ${ShizukuShell.quote(cwd)} && timeout 30 sh -c ${ShizukuShell.quote(cmd)} 2>&1"
+        val out = ShizukuShell.exec(wrapped)
+        return if (out.isBlank()) "(không có output)" else out.take(8000)
+    }
+
+    // ============ GITHUB ============
+
+    private fun githubPush(a: JSONObject): String {
+        if (!allowGitHub) return "ERR: AI chưa được cấp quyền GitHub. Bật trong Settings."
+        val repo = a.getString("repo")
+        val path = a.getString("path")
+        val localPath = a.getString("local_path")
+        val msg = a.getString("message")
+        val content = try {
+            if (FileOps.isProtected(localPath)) {
+                val real = ShizukuShell.translate(localPath)
+                val b64 = ShizukuShell.exec("base64 ${ShizukuShell.quote(real)} 2>&1")
+                String(android.util.Base64.decode(b64.trim(), android.util.Base64.DEFAULT), Charsets.UTF_8)
+            } else File(localPath).readText()
+        } catch (e: Exception) { return "ERR: đọc file local thất bại: ${e.message}" }
+
+        val r = GitHubClient.pushFile(repo, path, content, msg)
+        return if (r.ok) "OK: đã push $path → $repo ($msg)"
+               else "ERR: GitHub API ${r.status}: ${r.body.take(300)}"
+    }
+
+    private fun githubCreateRepo(a: JSONObject): String {
+        if (!allowGitHub) return "ERR: chưa bật GitHub"
+        val r = GitHubClient.createRepo(
+            a.getString("name"),
+            a.optString("description", ""),
+            a.optBoolean("private", false)
+        )
+        return if (r.ok) "OK: đã tạo repo ${a.getString("name")}"
+               else "ERR: ${r.status}: ${r.body.take(300)}"
+    }
+
+    private fun githubListFiles(a: JSONObject): String {
+        if (!allowGitHub) return "ERR: chưa bật GitHub"
+        val r = GitHubClient.listFiles(a.getString("repo"), a.optString("path", ""))
+        if (!r.ok) return "ERR: ${r.status}: ${r.body.take(300)}"
+        return try {
+            val arr = org.json.JSONArray(r.body)
+            (0 until arr.length()).joinToString("\n") {
+                val o = arr.getJSONObject(it)
+                "${o.getString("type")}  ${o.optLong("size", 0)}  ${o.getString("path")}"
+            }.ifBlank { "(trống)" }
+        } catch (e: Exception) { r.body.take(800) }
+    }
+
+    private fun githubGetFile(a: JSONObject): String {
+        if (!allowGitHub) return "ERR: chưa bật GitHub"
+        val r = GitHubClient.getFile(a.getString("repo"), a.getString("path"))
+        return if (r.ok) r.body.take(8000) else "ERR: ${r.status}: ${r.body.take(300)}"
+    }
+
+    private fun listGithubRepos(): String {
+        if (!allowGitHub) return "ERR: chưa bật GitHub"
+        val names = GitHubClient.listRepoNames()
+        return if (names.isEmpty()) "(không có repo hoặc PAT chưa đúng)" else names.joinToString("\n")
     }
 
     private fun listDirectory(a: JSONObject): String {
