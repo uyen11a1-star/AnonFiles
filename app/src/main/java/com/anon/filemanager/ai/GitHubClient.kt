@@ -58,7 +58,7 @@ object GitHubClient {
 
     fun testAuth(): Result = request("GET", "/user")
 
-    fun getUser(): String? {
+    fun fetchUser(): String? {
         val r = request("GET", "/user")
         if (!r.ok) return null
         return try { JSONObject(r.body).optString("login") } catch (_: Exception) { null }
@@ -81,7 +81,7 @@ object GitHubClient {
         commitMessage: String,
         branch: String = "main"
     ): Result {
-        val owner = user.ifBlank { getUser() ?: return Result(false, "ERR: không xác định được user", 0) }
+        val owner = user.ifBlank { fetchUser() ?: return Result(false, "ERR: không xác định được user", 0) }
         val b64 = Base64.encodeToString(content.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
         val sha = getFileSha(owner, repo, path, branch)
         val body = JSONObject().apply {
@@ -95,13 +95,13 @@ object GitHubClient {
     }
 
     fun listFiles(repo: String, path: String = "", branch: String = "main"): Result {
-        val owner = user.ifBlank { getUser() ?: return Result(false, "ERR: chưa xác định user", 0) }
+        val owner = user.ifBlank { fetchUser() ?: return Result(false, "ERR: chưa xác định user", 0) }
         val p = "/repos/$owner/$repo/contents/${if (path.isBlank()) "" else path.split("/").joinToString("/") { URLEncoder.encode(it, "UTF-8") }}?ref=$branch"
         return request("GET", p)
     }
 
     fun getFile(repo: String, path: String, branch: String = "main"): Result {
-        val owner = user.ifBlank { getUser() ?: return Result(false, "ERR: chưa xác định user", 0) }
+        val owner = user.ifBlank { fetchUser() ?: return Result(false, "ERR: chưa xác định user", 0) }
         val p = "/repos/$owner/$repo/contents/${path.split("/").joinToString("/") { URLEncoder.encode(it, "UTF-8") }}?ref=$branch"
         val r = request("GET", p)
         if (!r.ok) return r

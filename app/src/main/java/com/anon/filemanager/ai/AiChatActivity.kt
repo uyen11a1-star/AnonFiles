@@ -228,7 +228,7 @@ class AiChatActivity : AppCompatActivity() {
                     val ghMsg = if (GitHubClient.pat.isBlank()) "GitHub: (chưa có PAT)"
                     else try {
                         val r = GitHubClient.testAuth()
-                        if (r.ok) "GitHub OK: ${GitHubClient.getUser() ?: "?"}" else "GitHub ERR: ${r.status}"
+                        if (r.ok) "GitHub OK: ${GitHubClient.fetchUser() ?: "?"}" else "GitHub ERR: ${r.status}"
                     } catch (e: Exception) { "GitHub ERR: ${e.message}" }
 
                     runOnUiThread {
