@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/sel_copy" android:title="Copy" android:showAsAction="never"/>
+    <item android:id="@+id/sel_cut" android:title="Cut" android:showAsAction="never"/>
+    <item android:id="@+id/sel_delete" android:title="Xóa" android:showAsAction="never"/>
+    <item android:id="@+id/sel_compress" android:title="Nén" android:showAsAction="never"/>
+    <item android:id="@+id/sel_share" android:title="Chia sẻ" android:showAsAction="never"/>
+    <item android:id="@+id/sel_select_all" android:title="Chọn tất cả" android:showAsAction="never"/>
+</menu>

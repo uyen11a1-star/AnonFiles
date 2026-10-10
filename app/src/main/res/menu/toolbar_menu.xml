@@ -2,8 +2,16 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@+id/action_new_folder" android:title="Thư mục mới"
         android:icon="@android:drawable/ic_menu_add" android:showAsAction="ifRoom"/>
+    <item android:id="@+id/action_new_file" android:title="File mới"
+        android:icon="@android:drawable/ic_menu_edit" android:showAsAction="ifRoom"/>
+    <item android:id="@+id/action_select" android:title="Chọn nhiều"
+        android:icon="@android:drawable/ic_menu_agenda" android:showAsAction="ifRoom"/>
+    <item android:id="@+id/action_paste" android:title="Dán"
+        android:icon="@android:drawable/ic_menu_paste" android:showAsAction="ifRoom"/>
+    <item android:id="@+id/action_sort" android:title="Sắp xếp"
+        android:icon="@android:drawable/ic_menu_sort_by_size" android:showAsAction="never"/>
     <item android:id="@+id/action_refresh" android:title="Làm mới"
-        android:icon="@android:drawable/ic_menu_rotate" android:showAsAction="ifRoom"/>
+        android:icon="@android:drawable/ic_menu_rotate" android:showAsAction="never"/>
     <item android:id="@+id/action_test_shell" android:title="Test Shizuku"
         android:icon="@android:drawable/ic_menu_manage" android:showAsAction="never"/>
 </menu>
