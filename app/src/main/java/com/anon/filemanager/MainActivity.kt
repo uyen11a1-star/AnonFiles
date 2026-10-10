@@ -270,10 +270,10 @@ class MainActivity : AppCompatActivity() {
             val line = raw.trim()
             if (line.isEmpty() || line.startsWith("total ")) continue
             val parts = line.split(Regex("\\s+"), 9)
-            if (parts.size < 9) continue
+            if (parts.size < 8) continue
             val perm = parts[0]
             if (perm.length < 10) continue
-            val name = parts[8]
+            val name = parts.last()
             if (name == "." || name == "..") continue
             if (perm.startsWith("l")) continue
             val size = parts[4].toLongOrNull() ?: 0L
