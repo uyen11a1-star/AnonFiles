@@ -70,6 +70,10 @@ class AiChatActivity : AppCompatActivity() {
         toolbar.inflateMenu(R.menu.ai_menu)
         toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                R.id.ai_log -> {
+                    startActivity(Intent(this, LogActivity::class.java))
+                    true
+                }
                 R.id.ai_clear -> { if (!busy) clearChat(); true }
                 R.id.ai_settings -> {
                     if (OmniRouteClient.isSharedBuild) {
@@ -92,6 +96,13 @@ class AiChatActivity : AppCompatActivity() {
                 try {
                     startActivity(Intent(this, PreviewActivity::class.java).putExtra("path", path))
                 } catch (_: Exception) {}
+            },
+            onRunCode = { code ->
+                if (!prefs.getBoolean("allow_shell", false)) {
+                    toast("Bật 'Cho phép chạy shell' trong Settings trước")
+                } else {
+                    runBashFromChat(code)
+                }
             }
         )
         recycler.layoutManager = LinearLayoutManager(this)
@@ -110,6 +121,12 @@ class AiChatActivity : AppCompatActivity() {
             OmniRouteClient.model = prefs.getString("model", OmniRouteClient.model) ?: OmniRouteClient.model
         }
         updateContextBar()
+
+        // Load GitHub + Agent settings
+        GitHubClient.pat = prefs.getString("gh_pat", "") ?: ""
+        GitHubClient.user = prefs.getString("gh_user", "") ?: ""
+        AiTools.allowShell = prefs.getBoolean("allow_shell", false)
+        AiTools.allowGitHub = prefs.getBoolean("allow_github", false)
 
         AiTools.onOpenPreview = { path ->
             runOnUiThread {
@@ -153,39 +170,71 @@ class AiChatActivity : AppCompatActivity() {
         val key: EditText = dlg.findViewById(R.id.cfgKey)
         val model: EditText = dlg.findViewById(R.id.cfgModel)
         val test: TextView = dlg.findViewById(R.id.cfgTest)
+        val ghPat: EditText = dlg.findViewById(R.id.cfgGitHubPat)
+        val ghUser: EditText = dlg.findViewById(R.id.cfgGitHubUser)
+        val ghTest: TextView = dlg.findViewById(R.id.cfgGitHubTest)
+        val allowShellCb: android.widget.CheckBox = dlg.findViewById(R.id.cfgAllowShell)
+        val allowGitHubCb: android.widget.CheckBox = dlg.findViewById(R.id.cfgAllowGitHub)
 
         url.setText(OmniRouteClient.baseUrl)
         key.setText(OmniRouteClient.apiKey)
         model.setText(OmniRouteClient.model)
+        ghPat.setText(GitHubClient.pat)
+        ghUser.setText(GitHubClient.user)
+        allowShellCb.isChecked = prefs.getBoolean("allow_shell", false)
+        allowGitHubCb.isChecked = prefs.getBoolean("allow_github", false)
 
         AlertDialog.Builder(this)
-            .setTitle("Cấu hình AI")
+            .setTitle("Cấu hình")
             .setView(dlg)
             .setPositiveButton("Lưu") { _, _ ->
                 OmniRouteClient.baseUrl = url.text.toString().trim().ifBlank { "http://127.0.0.1:20128" }
                 OmniRouteClient.apiKey = key.text.toString().trim()
                 OmniRouteClient.model = model.text.toString().trim().ifBlank { "gpt-4o-mini" }
+                GitHubClient.pat = ghPat.text.toString().trim()
+                GitHubClient.user = ghUser.text.toString().trim()
+
                 prefs.edit()
                     .putString("url", OmniRouteClient.baseUrl)
                     .putString("key", OmniRouteClient.apiKey)
                     .putString("model", OmniRouteClient.model)
+                    .putString("gh_pat", GitHubClient.pat)
+                    .putString("gh_user", GitHubClient.user)
+                    .putBoolean("allow_shell", allowShellCb.isChecked)
+                    .putBoolean("allow_github", allowGitHubCb.isChecked)
                     .apply()
+
+                AiTools.allowShell = allowShellCb.isChecked
+                AiTools.allowGitHub = allowGitHubCb.isChecked
                 updateContextBar()
-                toast("✦ Đã lưu cấu hình")
+                toast("✦ Đã lưu")
             }
             .setNeutralButton("Test") { _, _ ->
                 OmniRouteClient.baseUrl = url.text.toString().trim().ifBlank { "http://127.0.0.1:20128" }
                 OmniRouteClient.apiKey = key.text.toString().trim()
                 OmniRouteClient.model = model.text.toString().trim().ifBlank { "gpt-4o-mini" }
+                GitHubClient.pat = ghPat.text.toString().trim()
+                GitHubClient.user = ghUser.text.toString().trim()
+
                 executor.execute {
-                    val msg = try {
+                    val aiMsg = try {
                         val msgs = JSONArray().apply {
                             put(JSONObject().apply { put("role", "user"); put("content", "ping") })
                         }
                         val f = OmniRouteClient.chat(msgs, null)
-                        "OK: ${(f.content ?: "").take(80)}"
-                    } catch (e: Exception) { "ERR: ${e.message}" }
-                    runOnUiThread { test.text = msg }
+                        "AI OK: ${(f.content ?: "").take(60)}"
+                    } catch (e: Exception) { "AI ERR: ${e.message}" }
+
+                    val ghMsg = if (GitHubClient.pat.isBlank()) "GitHub: (chưa có PAT)"
+                    else try {
+                        val r = GitHubClient.testAuth()
+                        if (r.ok) "GitHub OK: ${GitHubClient.getUser() ?: "?"}" else "GitHub ERR: ${r.status}"
+                    } catch (e: Exception) { "GitHub ERR: ${e.message}" }
+
+                    runOnUiThread {
+                        test.text = aiMsg
+                        ghTest.text = ghMsg
+                    }
                 }
             }
             .setNegativeButton("Hủy", null)
@@ -239,6 +288,7 @@ class AiChatActivity : AppCompatActivity() {
         statusBar.visibility = View.VISIBLE
         send.isEnabled = false
         setStatus("Khởi động…")
+        AgentLog.info("agent", "start; model=${OmniRouteClient.model}")
         executor.execute { runAgentLoop() }
     }
 
@@ -353,11 +403,13 @@ class AiChatActivity : AppCompatActivity() {
                     }
                     scrollBottom()
 
+                    AgentLog.tool(tc.name, tc.argsJson)
                     val result = try {
                         AiTools.dispatch(tc.name, tc.argsJson, this)
                     } catch (e: Exception) {
                         "ERR: ${e.message}"
                     }
+                    AgentLog.result(tc.name, !result.startsWith("ERR"), result)
 
                     val isErr = result.startsWith("ERR") || result.contains("Permission denied", true)
                     runOnUiThread {
@@ -399,6 +451,7 @@ class AiChatActivity : AppCompatActivity() {
         } catch (ce: CancellationException) {
             endAgent("Đã hủy.")
         } catch (e: Exception) {
+            AgentLog.err("agent", e.message ?: "unknown")
             runOnUiThread {
                 adapter.add(ChatMessage(MsgType.ERROR, "ERR: ${e.message}"))
                 scrollBottom()
@@ -462,6 +515,29 @@ class AiChatActivity : AppCompatActivity() {
     }
 
     // ============================== HELPERS ==============================
+
+    private fun runBashFromChat(code: String) {
+        val idx = runOnUiThreadSync {
+            adapter.add(ChatMessage(MsgType.TOOL_CALL, "", toolName = "run_shell(user)", toolArgs = code.take(300), toolResult = "đang chạy…", toolOk = null))
+        }
+        scrollBottom()
+        Thread {
+            val out = try {
+                val cmd = "cd /storage/emulated/0 && timeout 30 sh -c ${com.anon.filemanager.ShizukuShell.quote(code)} 2>&1"
+                com.anon.filemanager.ShizukuShell.exec(cmd)
+            } catch (e: Exception) { "ERR: ${e.message}" }
+            AgentLog.result("run_shell(user)", !out.startsWith("ERR"), out)
+            runOnUiThread {
+                adapter.updateAt(idx) { it.copy(toolResult = out.ifBlank { "(empty)" }, toolOk = !out.startsWith("ERR")) }
+                scrollBottom()
+                // Inject kết quả vào history để AI đọc
+                history.put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", "[USER chạy bash block]:\n$code\n\n[Kết quả]:\n${out.take(4000)}")
+                })
+            }
+        }.start()
+    }
 
     private fun <T> runOnUiThreadSync(block: () -> T): T {
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {

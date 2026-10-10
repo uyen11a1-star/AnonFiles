@@ -51,6 +51,9 @@
         <activity android:name=".preview.PreviewActivity"
             android:exported="false"
             android:label="Preview" />
+        <activity android:name=".ai.LogActivity"
+            android:exported="false"
+            android:label="Agent Log" />
         <activity android:name=".ai.AiChatActivity"
             android:exported="false"
             android:label="AI Chat"

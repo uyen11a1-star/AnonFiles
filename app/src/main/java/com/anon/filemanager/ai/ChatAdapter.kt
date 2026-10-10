@@ -21,7 +21,8 @@ import java.io.File
 class ChatAdapter(
     private val items: MutableList<ChatMessage>,
     private val onOpenFile: (String) -> Unit,
-    private val onOpenArtifact: (String) -> Unit
+    private val onOpenArtifact: (String) -> Unit,
+    private val onRunCode: ((String) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -101,6 +102,29 @@ class ChatAdapter(
                 holder.msg.setTextColor(
                     if (m.type == MsgType.ERROR) 0xFFB91C1C.toInt() else 0xFF1A1A2E.toInt()
                 )
+                // Long-press để chọn: nếu message chứa ```bash, đề xuất chạy
+                holder.msg.setOnLongClickListener { v ->
+                    val runMatch = Regex("```(?:bash|sh)\\n([\\s\\S]*?)```").find(base)
+                    if (runMatch != null && onRunCode != null) {
+                        android.app.AlertDialog.Builder(v.context)
+                            .setTitle("Chạy bash block?")
+                            .setMessage(runMatch.groupValues[1].take(400))
+                            .setPositiveButton("Chạy") { _, _ -> onRunCode.invoke(runMatch.groupValues[1]) }
+                            .setNegativeButton("Hủy", null)
+                            .setNeutralButton("Copy") { _, _ ->
+                                val cm = v.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                cm.setPrimaryClip(android.content.ClipData.newPlainText("bash", runMatch.groupValues[1]))
+                            }
+                            .show()
+                        true
+                    } else {
+                        // fallback: copy toàn bộ content
+                        val cm = v.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText("msg", base))
+                        android.widget.Toast.makeText(v.context, "Đã copy tin nhắn", android.widget.Toast.LENGTH_SHORT).show()
+                        true
+                    }
+                }
             }
 
             is ToolVH -> {
