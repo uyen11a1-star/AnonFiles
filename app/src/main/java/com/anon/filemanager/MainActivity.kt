@@ -46,12 +46,12 @@ class MainActivity : AppCompatActivity() {
 
     private var currentPath: String = Environment.getExternalStorageDirectory().absolutePath
 
-    // clipboard state
-    private var clipPath: String? = null
+    // clipboard state — hỗ trợ nhiều file
+    private var clipPaths: MutableList<String> = mutableListOf()
     private var clipIsCut: Boolean = false
 
-    // selection mode
     private var selectionMode = false
+    private var showHidden = false
 
     private val SHIZUKU_REQ = 9001
     private val permLauncher = registerForActivityResult(
@@ -109,7 +109,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() { super.onResume(); updateStatusBar() }
 
-    // ============================== MENU ==============================
+    // ============ MENU ============
 
     private fun showMainMenu() {
         toolbar.menu.clear()
@@ -118,15 +118,16 @@ class MainActivity : AppCompatActivity() {
             when (item.itemId) {
                 R.id.action_new_folder -> { promptNewFolder(); true }
                 R.id.action_new_file -> { promptNewFile(); true }
+                R.id.action_search -> { promptSearch(); true }
                 R.id.action_select -> { enterSelection(); true }
                 R.id.action_paste -> { doPaste(); true }
                 R.id.action_sort -> { showSortDialog(); true }
+                R.id.action_hidden -> { showHidden = !showHidden; toast(if (showHidden) "Hiện file ẩn" else "Ẩn file ẩn"); refresh(); true }
                 R.id.action_refresh -> { refresh(); true }
                 R.id.action_test_shell -> { runShellDiagnostic(); true }
                 else -> false
             }
         }
-        toolbar.subtitle = "${adapter.itemCount} mục"
     }
 
     private fun showSelectionMenu() {
@@ -145,7 +146,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ============================== SELECTION ==============================
+    // ============ SELECTION ============
 
     private fun enterSelection() {
         selectionMode = true
@@ -160,6 +161,7 @@ class MainActivity : AppCompatActivity() {
         adapter.setSelectionMode(false)
         toolbar.setNavigationIcon(R.drawable.ic_menu_hamburger)
         showMainMenu()
+        toolbar.subtitle = "${adapter.itemCount} mục"
     }
 
     private fun updateSelectionSubtitle() {
@@ -169,31 +171,27 @@ class MainActivity : AppCompatActivity() {
     private fun selCopy(cut: Boolean) {
         val items = adapter.selectedItems()
         if (items.isEmpty()) { toast("Chưa chọn gì"); return }
-        if (items.size == 1) {
-            clipPath = items[0].file.absolutePath
-            clipIsCut = cut
-            toast(if (cut) "✂ Đã cut" else "✦ Đã copy")
-        } else {
-            // nhiều file → chỉ hỗ trợ copy từng file khi paste; lưu list vào biến phụ
-            clipPath = null
-            clipIsCut = cut
-            toast("Chỉ hỗ trợ copy 1 file — chọn 1 file")
-        }
+        clipPaths = items.map { it.file.absolutePath }.toMutableList()
+        clipIsCut = cut
+        toast(if (cut) "✂ Đã cut ${items.size} mục" else "✦ Đã copy ${items.size} mục")
+        exitSelection()
     }
 
     private fun doPaste() {
-        val src = clipPath ?: run { toast("Clipboard trống"); return }
-        val res = if (clipIsCut) FileOps.move(src, currentPath) else FileOps.copy(src, currentPath)
-        if (res.startsWith("ERR") || res.contains("Permission") || res.contains("denied")) {
-            toast(res)
-        } else {
-            toast(if (clipIsCut) "✦ Đã move" else "✦ Đã paste")
-            if (clipIsCut) { clipPath = null; clipIsCut = false }
-            refresh()
+        if (clipPaths.isEmpty()) { toast("Clipboard trống"); return }
+        var okCount = 0
+        var errCount = 0
+        clipPaths.toList().forEach { p ->
+            if (!File(p).exists() && !FileOps.isProtected(p)) { errCount++; return@forEach }
+            val res = if (clipIsCut) FileOps.move(p, currentPath) else FileOps.copy(p, currentPath)
+            if (res.contains("denied") || res.startsWith("ERR")) errCount++ else okCount++
         }
+        toast("✦ $okCount ok${if (errCount > 0) " · $errCount lỗi" else ""}")
+        if (clipIsCut) { clipPaths.clear(); clipIsCut = false }
+        refresh()
     }
 
-    // ============================== ITEM INTERACTION ==============================
+    // ============ ITEM INTERACTION ============
 
     private fun onItemClick(item: FileItem) {
         if (selectionMode) {
@@ -204,17 +202,28 @@ class MainActivity : AppCompatActivity() {
         when {
             item.isDirectory -> { currentPath = item.file.absolutePath; refresh() }
             item.isApk -> confirmInstall(item)
+            item.isArchive -> startActivity(Intent(this, ArchivePreviewActivity::class.java).putExtra("path", item.file.absolutePath))
             item.isText -> openEditor(item)
-            item.isArchive -> confirmUnzip(item)
-            else -> FileOps.openWith(this, item.file.absolutePath, mimeOf(item))
+            item.extension in setOf("png","jpg","jpeg","gif","webp","bmp","mp4","mkv","mp3","ogg","wav","pdf") ->
+                FileOps.openWith(this, item.file.absolutePath, mimeOf(item))
+            else -> showBinaryOptions(item)
         }
+    }
+
+    private fun showBinaryOptions(item: FileItem) {
+        AlertDialog.Builder(this).setTitle(item.name)
+            .setItems(arrayOf("Xem hex", "Mở bằng app khác", "Thuộc tính")) { _, w ->
+                when (w) {
+                    0 -> startActivity(Intent(this, HexViewActivity::class.java).putExtra("path", item.file.absolutePath))
+                    1 -> FileOps.openWith(this, item.file.absolutePath, mimeOf(item))
+                    2 -> showProperties(item)
+                }
+            }.show()
     }
 
     private fun onItemLongClick(item: FileItem) {
         if (selectionMode) {
-            adapter.toggleSelect(item)
-            updateSelectionSubtitle()
-            return
+            adapter.toggleSelect(item); updateSelectionSubtitle(); return
         }
         showItemMenu(item)
     }
@@ -226,6 +235,7 @@ class MainActivity : AppCompatActivity() {
         when {
             item.isDirectory -> { labels += "Mở"; actions += { currentPath = item.file.absolutePath; refresh() } }
             item.isApk -> { labels += "Cài đặt"; actions += { confirmInstall(item) } }
+            item.isArchive -> { labels += "Xem trong archive"; actions += { startActivity(Intent(this, ArchivePreviewActivity::class.java).putExtra("path", item.file.absolutePath)) } }
             item.isText -> { labels += "Sửa văn bản"; actions += { openEditor(item) } }
             else -> { labels += "Mở bằng..."; actions += { FileOps.openWith(this, item.file.absolutePath, mimeOf(item)) } }
         }
@@ -233,9 +243,13 @@ class MainActivity : AppCompatActivity() {
         if (item.isArchive && !item.isDirectory) {
             labels += "Giải nén"; actions += { confirmUnzip(item) }
         }
+        if (!item.isDirectory) {
+            labels += "Xem hex"; actions += { startActivity(Intent(this, HexViewActivity::class.java).putExtra("path", item.file.absolutePath)) }
+        }
 
-        labels += "Copy"; actions += { clipPath = item.file.absolutePath; clipIsCut = false; toast("✦ Đã copy") }
-        labels += "Cut"; actions += { clipPath = item.file.absolutePath; clipIsCut = true; toast("✂ Đã cut") }
+        labels += "Thuộc tính + Hash"; actions += { showProperties(item) }
+        labels += "Copy"; actions += { clipPaths = mutableListOf(item.file.absolutePath); clipIsCut = false; toast("✦ Đã copy") }
+        labels += "Cut"; actions += { clipPaths = mutableListOf(item.file.absolutePath); clipIsCut = true; toast("✂ Đã cut") }
         labels += "Đổi tên"; actions += { promptRename(item) }
         labels += "Nén (zip)"; actions += { promptCompress(listOf(item)) }
         labels += "Nén (.tar.gz)"; actions += { promptCompressTarGz(listOf(item)) }
@@ -249,7 +263,75 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // ============================== FILE ACTIONS ==============================
+    // ============ PROPERTIES ============
+
+    private fun showProperties(item: FileItem) {
+        val dlg = layoutInflater.inflate(R.layout.dialog_properties, null)
+        dlg.findViewById<TextView>(R.id.pName).text = item.name
+        val body = dlg.findViewById<TextView>(R.id.pBody)
+        body.text = "Đang tính hash..."
+        val dialog = AlertDialog.Builder(this)
+            .setView(dlg)
+            .setPositiveButton("Đóng", null)
+            .setNeutralButton("Copy", null)
+            .create()
+        dialog.show()
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(ClipData.newPlainText("props", body.text))
+            toast("Đã copy")
+        }
+        Thread {
+            val txt = FileProperties.format(item.file.absolutePath)
+            runOnUiThread { body.text = txt }
+        }.start()
+    }
+
+    // ============ SEARCH ============
+
+    private fun promptSearch() {
+        val dlg = layoutInflater.inflate(R.layout.dialog_search, null)
+        val input: EditText = dlg.findViewById(R.id.searchInput)
+        AlertDialog.Builder(this).setTitle("Tìm trong: ${File(currentPath).name}")
+            .setView(dlg)
+            .setPositiveButton("Tìm") { _, _ ->
+                val q = input.text.toString().trim()
+                if (q.isNotBlank()) runSearch(q)
+            }.setNegativeButton("Hủy", null).show()
+    }
+
+    private fun runSearch(query: String) {
+        val result = mutableListOf<FileItem>()
+        val protected = isProtected(currentPath)
+        if (protected) {
+            val real = ShizukuShell.translate(currentPath)
+            val out = ShizukuShell.exec("find ${ShizukuShell.quote(real)} -iname \"*${query.replace("\"","\\\"")}*\" -maxdepth 6 2>/dev/null | head -200")
+            out.lines().filter { it.isNotBlank() }.forEach { p ->
+                val name = p.substringAfterLast('/')
+                val pathFuse = p.replace("/data/media/0/", "/storage/emulated/0/")
+                result.add(FileItem(File(pathFuse), name, false, 0L, 0L, true))
+            }
+        } else {
+            searchRecursive(File(currentPath), query.lowercase(), result, 0)
+        }
+        adapter.update(result)
+        toolbar.subtitle = "Kết quả: ${result.size}"
+        toast("Tìm thấy ${result.size} mục")
+        if (result.isEmpty()) refresh()
+    }
+
+    private fun searchRecursive(dir: File, q: String, out: MutableList<FileItem>, depth: Int) {
+        if (depth > 6 || out.size > 500) return
+        val list = try { dir.listFiles() } catch (e: Exception) { null } ?: return
+        for (f in list) {
+            if (f.name.lowercase().contains(q)) {
+                out.add(FileItem(f, f.name, f.isDirectory, f.length(), f.lastModified(), false))
+            }
+            if (f.isDirectory && !f.name.startsWith(".")) searchRecursive(f, q, out, depth + 1)
+        }
+    }
+
+    // ============ FILE ACTIONS ============
 
     private fun promptNewFolder() {
         val ed = EditText(this).apply { hint = "Tên thư mục" }
@@ -299,8 +381,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun confirmInstall(item: FileItem) {
-        AlertDialog.Builder(this).setTitle("Cài đặt APK")
-            .setMessage("Cài ${item.name}?")
+        AlertDialog.Builder(this).setTitle("Cài đặt APK").setMessage("Cài ${item.name}?")
             .setPositiveButton("Cài") { _, _ -> FileOps.installApk(this, item.file.absolutePath) }
             .setNegativeButton("Hủy", null).show()
     }
@@ -385,11 +466,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun mimeOf(item: FileItem): String {
         if (item.isDirectory) return "*/*"
-        val ext = item.extension
-        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "*/*"
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(item.extension) ?: "*/*"
     }
 
-    // ============================== SORT ==============================
+    // ============ SORT ============
 
     private enum class SortKey { NAME, SIZE, DATE, TYPE }
     private var sortKey = SortKey.NAME
@@ -414,11 +494,10 @@ class MainActivity : AppCompatActivity() {
             SortKey.TYPE -> compareBy { it.extension.ifBlank { "~" } }
         }
         val sorted = if (sortAsc) list.sortedWith(cmp) else list.sortedWith(cmp.reversed())
-        // folder luôn trên
         return sorted.sortedByDescending { it.isDirectory }
     }
 
-    // ============================== NAV DRAWER ==============================
+    // ============ NAV ============
 
     private fun handleNav(id: Int) {
         val base = Environment.getExternalStorageDirectory()
@@ -438,7 +517,7 @@ class MainActivity : AppCompatActivity() {
         refresh()
     }
 
-    // ============================== PERMISSION ==============================
+    // ============ PERM ============
 
     private fun isProtected(path: String) = FileOps.isProtected(path)
 
@@ -495,20 +574,20 @@ class MainActivity : AppCompatActivity() {
         if (g.isNotEmpty() && g.all { it == PackageManager.PERMISSION_GRANTED }) refresh()
     }
 
-    // ============================== REFRESH ==============================
+    // ============ REFRESH ============
 
     private fun refresh() {
         updateStatusBar()
 
         val protected = isProtected(currentPath)
         val items: List<FileItem> = if (protected) {
-            if (!ShizukuShell.isGranted()) {
-                toast("Cần Shizuku cho Android/data"); emptyList()
-            } else listViaShell(currentPath)
+            if (!ShizukuShell.isGranted()) { toast("Cần Shizuku cho Android/data"); emptyList() }
+            else listViaShell(currentPath)
         } else {
             val dir = File(currentPath)
             val raw = try { dir.listFiles() } catch (e: Exception) { null } ?: emptyArray()
-            raw.map { FileItem(it, it.name, it.isDirectory, it.length(), it.lastModified(), false) }
+            raw.filter { showHidden || !it.name.startsWith(".") }
+                .map { FileItem(it, it.name, it.isDirectory, it.length(), it.lastModified(), false) }
         }
 
         val sorted = applySort(items)
@@ -535,6 +614,7 @@ class MainActivity : AppCompatActivity() {
             if (perm.startsWith("l")) continue
             val name = parts.drop(7).joinToString(" ")
             if (name == "." || name == "..") continue
+            if (!showHidden && name.startsWith(".")) continue
             val size = parts[4].toLongOrNull() ?: 0L
             val isDir = perm.startsWith("d")
             val lm = try {
@@ -546,7 +626,7 @@ class MainActivity : AppCompatActivity() {
         return result
     }
 
-    // ============================== HELPERS ==============================
+    // ============ HELPERS ============
 
     private fun goUp() {
         if (currentPath == "/storage/emulated/0") return

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/hex_start" android:title="|&lt;" android:showAsAction="always"/>
+    <item android:id="@+id/hex_prev" android:title="&lt;" android:showAsAction="always"/>
+    <item android:id="@+id/hex_next" android:title="&gt;" android:showAsAction="always"/>
+</menu>
