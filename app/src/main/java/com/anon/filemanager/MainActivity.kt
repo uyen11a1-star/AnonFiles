@@ -32,6 +32,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.navigation.NavigationView
 import com.anon.filemanager.crypto.CryptoHelper
+import com.anon.filemanager.preview.PreviewActivity
 import com.anon.filemanager.rton.RtonEditorActivity
 import com.anon.filemanager.rton.RtonReader
 import rikka.shizuku.Shizuku
@@ -208,6 +209,7 @@ class MainActivity : AppCompatActivity() {
             item.isArchive -> startActivity(Intent(this, ArchivePreviewActivity::class.java).putExtra("path", item.file.absolutePath))
             CryptoHelper.isEncryptedByExtension(item.name) -> promptDecrypt(item)
             isRtonFile(item) -> openRtonEditor(item)
+            isPreviewable(item) -> openPreview(item)
             item.isText -> openEditor(item)
             item.extension in setOf("png","jpg","jpeg","gif","webp","bmp","mp4","mkv","mp3","ogg","wav","pdf") ->
                 FileOps.openWith(this, item.file.absolutePath, mimeOf(item))
@@ -241,6 +243,10 @@ class MainActivity : AppCompatActivity() {
             item.isDirectory -> { labels += "Mở"; actions += { currentPath = item.file.absolutePath; refresh() } }
             item.isApk -> { labels += "Cài đặt"; actions += { confirmInstall(item) } }
             item.isArchive -> { labels += "Xem trong archive"; actions += { startActivity(Intent(this, ArchivePreviewActivity::class.java).putExtra("path", item.file.absolutePath)) } }
+            isPreviewable(item) -> {
+                labels += "Preview"; actions += { openPreview(item) }
+                labels += "Mở bằng..."; actions += { FileOps.openWith(this, item.file.absolutePath, mimeOf(item)) }
+            }
             item.isText -> { labels += "Sửa văn bản"; actions += { openEditor(item) } }
             else -> { labels += "Mở bằng..."; actions += { FileOps.openWith(this, item.file.absolutePath, mimeOf(item)) } }
         }
@@ -784,6 +790,21 @@ class MainActivity : AppCompatActivity() {
                 } else toast(err)
             }
         }.start()
+    }
+
+    // ============ PREVIEW ============
+
+    private fun isPreviewable(item: FileItem): Boolean {
+        if (item.isDirectory) return false
+        return item.extension in setOf(
+            "html", "htm", "md", "markdown", "svg", "pdf",
+            "xml", "json", "txt", "log", "yml", "yaml", "ini", "cfg",
+            "css", "js", "ts", "sh", "py", "kt", "java", "cpp", "h", "hpp", "c", "cs", "rs", "go"
+        )
+    }
+
+    private fun openPreview(item: FileItem) {
+        startActivity(Intent(this, PreviewActivity::class.java).putExtra("path", item.file.absolutePath))
     }
 
     private fun goUp() {
