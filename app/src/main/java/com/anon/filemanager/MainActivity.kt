@@ -31,6 +31,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.navigation.NavigationView
+import com.anon.filemanager.crypto.CryptoHelper
 import com.anon.filemanager.rton.RtonEditorActivity
 import com.anon.filemanager.rton.RtonReader
 import rikka.shizuku.Shizuku
@@ -205,6 +206,7 @@ class MainActivity : AppCompatActivity() {
             item.isDirectory -> { currentPath = item.file.absolutePath; refresh() }
             item.isApk -> confirmInstall(item)
             item.isArchive -> startActivity(Intent(this, ArchivePreviewActivity::class.java).putExtra("path", item.file.absolutePath))
+            CryptoHelper.isEncryptedByExtension(item.name) -> promptDecrypt(item)
             isRtonFile(item) -> openRtonEditor(item)
             item.isText -> openEditor(item)
             item.extension in setOf("png","jpg","jpeg","gif","webp","bmp","mp4","mkv","mp3","ogg","wav","pdf") ->
@@ -251,6 +253,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         labels += "Thuộc tính + Hash"; actions += { showProperties(item) }
+        if (CryptoHelper.isEncryptedByExtension(item.name)) {
+            labels += "Giải mã"; actions += { promptDecrypt(item) }
+        } else if (!item.isDirectory) {
+            labels += "Mã hóa"; actions += { promptEncrypt(item) }
+        }
         labels += "Copy"; actions += { clipPaths = mutableListOf(item.file.absolutePath); clipIsCut = false; toast("✦ Đã copy") }
         labels += "Cut"; actions += { clipPaths = mutableListOf(item.file.absolutePath); clipIsCut = true; toast("✂ Đã cut") }
         labels += "Đổi tên"; actions += { promptRename(item) }
@@ -645,6 +652,138 @@ class MainActivity : AppCompatActivity() {
 
     private fun openRtonEditor(item: FileItem) {
         startActivity(Intent(this, RtonEditorActivity::class.java).putExtra("path", item.file.absolutePath))
+    }
+
+    // ============ CRYPTO ============
+
+    private fun promptEncrypt(item: FileItem) {
+        if (item.isDirectory) { toast("Không mã hóa thư mục — nén trước"); return }
+        val dlg = layoutInflater.inflate(R.layout.dialog_password, null)
+        val hint: TextView = dlg.findViewById(R.id.pwdHint)
+        val input: EditText = dlg.findViewById(R.id.pwdInput)
+        val confirm: EditText = dlg.findViewById(R.id.pwdConfirm)
+        val obf: android.widget.CheckBox = dlg.findViewById(R.id.pwdObfuscate)
+        val warn: TextView = dlg.findViewById(R.id.pwdWarn)
+
+        hint.text = "File: ${item.name}\nOutput: ${item.name}.aef"
+        confirm.visibility = android.view.View.VISIBLE
+        obf.isChecked = true
+        warn.text = "⚠ Mất mật khẩu = mất file. Không có cách khôi phục."
+
+        AlertDialog.Builder(this)
+            .setTitle("Mã hóa file")
+            .setView(dlg)
+            .setPositiveButton("Mã hóa") { _, _ ->
+                val pw = input.text.toString()
+                val pw2 = confirm.text.toString()
+                if (pw.length < 4) { toast("Mật khẩu tối thiểu 4 ký tự"); return@setPositiveButton }
+                if (pw != pw2) { toast("Mật khẩu xác nhận không khớp"); return@setPositiveButton }
+                runEncrypt(item, pw.toCharArray(), obf.isChecked)
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    private fun runEncrypt(item: FileItem, password: CharArray, obfuscate: Boolean) {
+        toast("Đang mã hóa...")
+        Thread {
+            val err = try {
+                val localSrc = if (FileOps.isProtected(item.file.absolutePath)) {
+                    FileOps.copyToCache(this, item.file.absolutePath) ?: run {
+                        runOnUiThread { toast("Copy cache thất bại") }; return@Thread
+                    }
+                } else File(item.file.absolutePath)
+
+                val outLocal = File(cacheDir, item.name + ".aef")
+                val e = CryptoHelper.encryptFile(localSrc, outLocal, password, obfuscate)
+                if (e.isNotBlank()) return@Thread runOnUiThread { toast(e) }
+
+                // Ghi output về đúng thư mục hiện tại
+                val outFinal = File(currentPath, item.name + ".aef").absolutePath
+                if (FileOps.isProtected(currentPath)) {
+                    val real = ShizukuShell.translate(outFinal)
+                    val res = ShizukuShell.exec("cp ${ShizukuShell.quote(outLocal.absolutePath)} ${ShizukuShell.quote(real)} 2>&1")
+                    if (res.contains("denied") || res.startsWith("ERR")) res else ""
+                } else {
+                    outLocal.copyTo(File(outFinal), overwrite = true); ""
+                }
+            } catch (ex: Exception) { "Lỗi: ${ex.message}" }
+
+            runOnUiThread {
+                if (err.isBlank()) {
+                    toast("✦ Đã mã hóa: ${item.name}.aef")
+                    refresh()
+                    // Hỏi xóa file gốc
+                    AlertDialog.Builder(this)
+                        .setTitle("Xóa file gốc?")
+                        .setMessage("Xóa ${item.name} sau khi mã hóa?")
+                        .setPositiveButton("Xóa") { _, _ ->
+                            FileOps.delete(item.file.absolutePath); refresh()
+                        }
+                        .setNegativeButton("Giữ lại", null)
+                        .show()
+                } else toast(err)
+            }
+        }.start()
+    }
+
+    private fun promptDecrypt(item: FileItem) {
+        val dlg = layoutInflater.inflate(R.layout.dialog_password, null)
+        val hint: TextView = dlg.findViewById(R.id.pwdHint)
+        val input: EditText = dlg.findViewById(R.id.pwdInput)
+        val confirm: EditText = dlg.findViewById(R.id.pwdConfirm)
+        val obf: android.widget.CheckBox = dlg.findViewById(R.id.pwdObfuscate)
+        val warn: TextView = dlg.findViewById(R.id.pwdWarn)
+
+        hint.text = "File: ${item.name}\nOutput: ${item.name.removeSuffix(".aef")}"
+        confirm.visibility = android.view.View.GONE
+        obf.isChecked = true   // mặc định file AnonFiles đều obfuscated
+        warn.text = "Nếu sai mật khẩu → báo lỗi GCM tag không khớp."
+
+        AlertDialog.Builder(this)
+            .setTitle("Giải mã file")
+            .setView(dlg)
+            .setPositiveButton("Giải mã") { _, _ ->
+                val pw = input.text.toString()
+                if (pw.isEmpty()) { toast("Nhập mật khẩu"); return@setPositiveButton }
+                runDecrypt(item, pw.toCharArray(), obf.isChecked)
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    private fun runDecrypt(item: FileItem, password: CharArray, obfuscated: Boolean) {
+        toast("Đang giải mã...")
+        Thread {
+            val err = try {
+                val localSrc = if (FileOps.isProtected(item.file.absolutePath)) {
+                    FileOps.copyToCache(this, item.file.absolutePath) ?: run {
+                        runOnUiThread { toast("Copy cache thất bại") }; return@Thread
+                    }
+                } else File(item.file.absolutePath)
+
+                val outName = item.name.removeSuffix(".aef")
+                val outLocal = File(cacheDir, outName)
+                val e = CryptoHelper.decryptFile(localSrc, outLocal, password, obfuscated)
+                if (e.isNotBlank()) return@Thread runOnUiThread { toast(e) }
+
+                val outFinal = File(currentPath, outName).absolutePath
+                if (FileOps.isProtected(currentPath)) {
+                    val real = ShizukuShell.translate(outFinal)
+                    val res = ShizukuShell.exec("cp ${ShizukuShell.quote(outLocal.absolutePath)} ${ShizukuShell.quote(real)} 2>&1")
+                    if (res.contains("denied") || res.startsWith("ERR")) res else ""
+                } else {
+                    outLocal.copyTo(File(outFinal), overwrite = true); ""
+                }
+            } catch (ex: Exception) { "Lỗi: ${ex.message}" }
+
+            runOnUiThread {
+                if (err.isBlank()) {
+                    toast("✦ Đã giải mã")
+                    refresh()
+                } else toast(err)
+            }
+        }.start()
     }
 
     private fun goUp() {
