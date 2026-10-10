@@ -30,12 +30,18 @@ class FileAdapter(
     override fun onBindViewHolder(holder: VH, position: Int) {
         val item = items[position]
         holder.name.text = item.name
-        holder.icon.setImageResource(
-            if (item.isDirectory) android.R.drawable.ic_menu_view
-            else android.R.drawable.ic_menu_save
-        )
+        val (icoRes, tint) = when {
+            item.isDirectory -> android.R.drawable.ic_menu_view to 0xFFFF6EC7.toInt()
+            item.name.endsWith(".apk", true) -> android.R.drawable.ic_menu_upload to 0xFF6EE7FF.toInt()
+            item.name.endsWith(".dat", true) || item.name.endsWith(".bin", true) -> android.R.drawable.ic_menu_edit to 0xFFFFB86C.toInt()
+            item.name.endsWith(".txt", true) || item.name.endsWith(".json", true) -> android.R.drawable.ic_menu_agenda to 0xFFA78BFA.toInt()
+            item.name.endsWith(".png", true) || item.name.endsWith(".jpg", true) || item.name.endsWith(".jpeg", true) -> android.R.drawable.ic_menu_gallery to 0xFF34D399.toInt()
+            else -> android.R.drawable.ic_menu_save to 0xFFF0F0F0.toInt()
+        }
+        holder.icon.setImageResource(icoRes)
+        holder.icon.setColorFilter(tint)
         holder.meta.text =
-            if (item.isDirectory) "Folder"
+            if (item.isDirectory) "📁 Folder"
             else "${fmtSize(item.size)}  ·  ${fmtDate(item.lastModified)}"
 
         holder.itemView.setOnClickListener { onClick(item) }
@@ -58,4 +64,4 @@ class FileAdapter(
         items.addAll(n)
         notifyDataSetChanged()
     }
-} 
+}
