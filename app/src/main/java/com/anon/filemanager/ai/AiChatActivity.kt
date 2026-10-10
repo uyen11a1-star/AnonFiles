@@ -1,8 +1,11 @@
 package com.anon.filemanager.ai
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
-import android.view.inputmethod.InputMethodManager
+import android.view.View
+import android.webkit.MimeTypeMap
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
@@ -10,12 +13,15 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.anon.filemanager.FileOps
 import com.anon.filemanager.R
 import com.anon.filemanager.preview.PreviewActivity
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.util.concurrent.CancellationException
 import java.util.concurrent.Executors
 
 class AiChatActivity : AppCompatActivity() {
@@ -25,14 +31,25 @@ class AiChatActivity : AppCompatActivity() {
     private lateinit var recycler: RecyclerView
     private lateinit var input: EditText
     private lateinit var send: MaterialButton
+    private lateinit var statusBar: View
+    private lateinit var statusText: TextView
+    private lateinit var statusStop: TextView
     private lateinit var adapter: ChatAdapter
 
-    // Lịch sử tin nhắn gửi lên server (khác với UI list)
     private val history = JSONArray()
     private val executor = Executors.newSingleThreadExecutor()
-    private var busy = false
+
+    @Volatile private var busy = false
+    @Volatile private var stopRequested = false
+
+    private var currentThinkingIdx = -1
+    private var currentContentIdx = -1
+    private var currentToolIdx = -1
+    private var stepCount = 0
 
     private val prefs by lazy { getSharedPreferences("ai_cfg", MODE_PRIVATE) }
+
+    private val MAX_STEPS = 24
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,81 +60,91 @@ class AiChatActivity : AppCompatActivity() {
         recycler = findViewById(R.id.aiRecycler)
         input = findViewById(R.id.aiInput)
         send = findViewById(R.id.aiSend)
+        statusBar = findViewById(R.id.statusBar)
+        statusText = findViewById(R.id.statusText)
+        statusStop = findViewById(R.id.statusStop)
 
-        toolbar.setNavigationOnClickListener { finish() }
+        toolbar.setNavigationOnClickListener {
+            if (busy) confirmExitWhileBusy() else finish()
+        }
         toolbar.inflateMenu(R.menu.ai_menu)
         toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                R.id.ai_clear -> { clearChat(); true }
-                R.id.ai_settings -> { showSettings(); true }
+                R.id.ai_clear -> { if (!busy) clearChat(); true }
+                R.id.ai_settings -> {
+                    if (OmniRouteClient.isSharedBuild) {
+                        toast("Bản chia sẻ — server do admin cấu hình")
+                    } else showSettings()
+                    true
+                }
                 else -> false
             }
         }
 
-        adapter = ChatAdapter(mutableListOf()) { path ->
-            try {
-                startActivity(android.content.Intent(this, PreviewActivity::class.java)
-                    .putExtra("path", path))
-            } catch (_: Exception) {}
-        }
+        adapter = ChatAdapter(
+            mutableListOf(),
+            onOpenFile = { path ->
+                try {
+                    startActivity(Intent(this, PreviewActivity::class.java).putExtra("path", path))
+                } catch (_: Exception) { toast("Không mở được: $path") }
+            },
+            onOpenArtifact = { path ->
+                try {
+                    startActivity(Intent(this, PreviewActivity::class.java).putExtra("path", path))
+                } catch (_: Exception) {}
+            }
+        )
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
 
-        // Nạp cấu hình
-        OmniRouteClient.baseUrl = prefs.getString("url", "http://127.0.0.1:20128") ?: "http://127.0.0.1:20128"
-        OmniRouteClient.apiKey = prefs.getString("key", "") ?: ""
-        OmniRouteClient.model = prefs.getString("model", "gpt-4o-mini") ?: "gpt-4o-mini"
-
-        // Context bar hiển thị cấu hình
+        // Config
+        if (OmniRouteClient.isSharedBuild) {
+            prefs.edit()
+                .putString("url", OmniRouteClient.baseUrl)
+                .putString("key", OmniRouteClient.apiKey)
+                .putString("model", OmniRouteClient.model)
+                .apply()
+        } else {
+            OmniRouteClient.baseUrl = prefs.getString("url", OmniRouteClient.baseUrl) ?: OmniRouteClient.baseUrl
+            OmniRouteClient.apiKey = prefs.getString("key", OmniRouteClient.apiKey) ?: OmniRouteClient.apiKey
+            OmniRouteClient.model = prefs.getString("model", OmniRouteClient.model) ?: OmniRouteClient.model
+        }
         updateContextBar()
 
-        // Setup preview callback
         AiTools.onOpenPreview = { path ->
             runOnUiThread {
                 try {
-                    startActivity(android.content.Intent(this, PreviewActivity::class.java)
-                        .putExtra("path", path))
+                    startActivity(Intent(this, PreviewActivity::class.java).putExtra("path", path))
                 } catch (_: Exception) {}
             }
         }
 
-        // Lời chào đầu tiên
         if (adapter.itemCount == 0) {
-            adapter.add(ChatMessage(false,
-                "Xin chào. Tôi có thể đọc, sửa, tạo, xóa file trong máy bạn — kể cả Android/data. Hãy hỏi bằng tiếng Việt tự nhiên, ví dụ:\n\n" +
-                "• \"Đọc file /storage/emulated/0/Download/test.txt\"\n" +
-                "• \"Đổi tên save.txt thành save_old.txt\"\n" +
-                "• \"Tạo thư mục /storage/emulated/0/Download/backup\"\n" +
-                "• \"Liệt kê Android/data/com.ea.game.pvz2_row/files/No_Backup\""
+            adapter.add(ChatMessage(
+                MsgType.ASSISTANT,
+                "ANON online. Giao việc cho tôi — tôi sẽ tự chia bước, tự chạy, tự kiểm tra, chỉ dừng khi xong.\n\n" +
+                "Ví dụ:\n" +
+                "• \"Đọc pp.dat trong Android/data/com.ea.game.pvz2_row/files/No_Backup và cho biết format\"\n" +
+                "• \"Tìm tất cả file .log trong Download, tổng hợp nội dung vào summary.txt\"\n" +
+                "• \"Tạo một trang HTML hello world trong Download rồi preview\""
             ))
         }
 
         send.setOnClickListener { sendCurrent() }
+        statusStop.setOnClickListener { requestStop() }
     }
 
     override fun onDestroy() {
+        stopRequested = true
+        try { AiTools.onOpenPreview = null } catch (_: Throwable) {}
+        executor.shutdownNow()
         super.onDestroy()
-        AiTools.onOpenPreview = null
-        executor.shutdown()
     }
+
+    // ============================== CONFIG ==============================
 
     private fun updateContextBar() {
         contextBar.text = "🌐 ${OmniRouteClient.baseUrl}  ·  ${OmniRouteClient.model}"
-    }
-
-    private fun clearChat() {
-        AlertDialog.Builder(this)
-            .setTitle("Xóa hội thoại?")
-            .setMessage("Xóa toàn bộ tin nhắn và lịch sử.")
-            .setPositiveButton("Xóa") { _, _ ->
-                adapter = ChatAdapter(mutableListOf()) { path ->
-                    startActivity(android.content.Intent(this, PreviewActivity::class.java).putExtra("path", path))
-                }
-                recycler.adapter = adapter
-                while (history.length() > 0) history.remove(0)
-                adapter.add(ChatMessage(false, "Đã xóa. Bắt đầu lại — hỏi gì cũng được."))
-            }
-            .setNegativeButton("Hủy", null).show()
     }
 
     private fun showSettings() {
@@ -131,7 +158,7 @@ class AiChatActivity : AppCompatActivity() {
         key.setText(OmniRouteClient.apiKey)
         model.setText(OmniRouteClient.model)
 
-        val d = AlertDialog.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle("Cấu hình AI")
             .setView(dlg)
             .setPositiveButton("Lưu") { _, _ ->
@@ -144,91 +171,159 @@ class AiChatActivity : AppCompatActivity() {
                     .putString("model", OmniRouteClient.model)
                     .apply()
                 updateContextBar()
-                Toast.makeText(this, "✦ Đã lưu cấu hình", Toast.LENGTH_SHORT).show()
+                toast("✦ Đã lưu cấu hình")
             }
-            .setNeutralButton("Test kết nối") { _, _ ->
+            .setNeutralButton("Test") { _, _ ->
                 OmniRouteClient.baseUrl = url.text.toString().trim().ifBlank { "http://127.0.0.1:20128" }
                 OmniRouteClient.apiKey = key.text.toString().trim()
                 OmniRouteClient.model = model.text.toString().trim().ifBlank { "gpt-4o-mini" }
                 executor.execute {
-                    val r = try {
+                    val msg = try {
                         val msgs = JSONArray().apply {
-                            put(JSONObject().apply {
-                                put("role", "user")
-                                put("content", "ping")
-                            })
+                            put(JSONObject().apply { put("role", "user"); put("content", "ping") })
                         }
-                        val reply = OmniRouteClient.chat(msgs, null)
-                        "OK: ${(reply.content ?: "").take(80)}"
-                    } catch (e: Exception) {
-                        "ERR: ${e.message}"
-                    }
-                    runOnUiThread { test.text = r }
+                        val f = OmniRouteClient.chat(msgs, null)
+                        "OK: ${(f.content ?: "").take(80)}"
+                    } catch (e: Exception) { "ERR: ${e.message}" }
+                    runOnUiThread { test.text = msg }
                 }
             }
             .setNegativeButton("Hủy", null)
-            .create()
-
-        d.show()
+            .show()
     }
 
+    private fun clearChat() {
+        AlertDialog.Builder(this)
+            .setTitle("Xóa hội thoại?")
+            .setMessage("Xóa toàn bộ tin nhắn và lịch sử.")
+            .setPositiveButton("Xóa") { _, _ ->
+                adapter.clear()
+                while (history.length() > 0) history.remove(0)
+                stepCount = 0
+                adapter.add(ChatMessage(MsgType.ASSISTANT, "Đã xóa. Bắt đầu lại."))
+            }
+            .setNegativeButton("Hủy", null).show()
+    }
+
+    private fun confirmExitWhileBusy() {
+        AlertDialog.Builder(this)
+            .setTitle("Đang chạy")
+            .setMessage("Agent đang xử lý. Dừng và thoát?")
+            .setPositiveButton("Dừng & Thoát") { _, _ -> requestStop(); finish() }
+            .setNegativeButton("Ở lại", null).show()
+    }
+
+    // ============================== AGENT ==============================
+
     private fun sendCurrent() {
-        if (busy) { Toast.makeText(this, "Đang xử lý...", Toast.LENGTH_SHORT).show(); return }
+        if (busy) { toast("Agent đang chạy — nhấn Dừng để hủy"); return }
         val text = input.text.toString().trim()
         if (text.isBlank()) return
         input.setText("")
 
-        adapter.add(ChatMessage(true, text))
-        scrollToBottom()
+        adapter.add(ChatMessage(MsgType.USER, text))
+        scrollBottom()
 
-        // Đưa vào history
         history.put(JSONObject().apply {
             put("role", "user")
             put("content", text)
         })
 
-        // Thêm tin nhắn "đang xử lý"
-        adapter.add(ChatMessage(false, "…"))
-        scrollToBottom()
-
-        busy = true
-        executor.execute { runLoop() }
+        startAgent()
     }
 
-    // Tool-calling loop: gửi → nhận → nếu tool_calls thì execute → gửi lại → lặp tối đa 6 vòng
-    private fun runLoop() {
-        var iteration = 0
-        val maxIter = 6
-        val toolLog = StringBuilder()
+    private fun startAgent() {
+        busy = true
+        stopRequested = false
+        stepCount = 0
+        statusBar.visibility = View.VISIBLE
+        send.isEnabled = false
+        setStatus("Khởi động…")
+        executor.execute { runAgentLoop() }
+    }
+
+    private fun requestStop() {
+        if (!busy) return
+        stopRequested = true
+        setStatus("Đang hủy…")
+    }
+
+    private fun setStatus(msg: String) {
+        runOnUiThread { statusText.text = msg }
+    }
+
+    private fun endAgent(reason: String) {
+        busy = false
+        runOnUiThread {
+            statusBar.visibility = View.GONE
+            send.isEnabled = true
+            if (reason.isNotBlank()) toast(reason)
+        }
+    }
+
+    private fun runAgentLoop() {
+        // Đảm bảo system prompt ở đầu history
+        if (history.length() == 0 || history.getJSONObject(0).optString("role") != "system") {
+            val sys = JSONObject().apply {
+                put("role", "system")
+                put("content", AgentPrompt.system())
+            }
+            val newArr = JSONArray()
+            newArr.put(sys)
+            for (i in 0 until history.length()) newArr.put(history.getJSONObject(i))
+            while (history.length() > 0) history.remove(0)
+            for (i in 0 until newArr.length()) history.put(newArr.getJSONObject(i))
+        }
 
         try {
-            while (iteration < maxIter) {
-                iteration++
-                val reply = OmniRouteClient.chat(history, AiTools.definitions())
+            var step = 0
+            while (step < MAX_STEPS) {
+                if (stopRequested) throw CancellationException()
+                step++
+                stepCount = step
+                setStatus("Bước $step — gửi yêu cầu…")
 
-                if (reply.toolCalls.isEmpty()) {
-                    // Không có tool → trả lời cuối cùng
-                    val content = reply.content ?: "(không có nội dung)"
+                currentThinkingIdx = -1
+                currentContentIdx = -1
+
+                val final = OmniRouteClient.chatStream(
+                    history,
+                    AiTools.definitions()
+                ) { ev -> handleEvent(ev) }
+
+                if (stopRequested) throw CancellationException()
+
+                // Nếu không có tool call → kết thúc
+                if (final.toolCalls.isEmpty()) {
+                    val content = final.content ?: "(không có nội dung)"
+                    // Đảm bảo content đã được hiển thị
+                    val idx = currentContentIdx
+                    if (idx >= 0) {
+                        runOnUiThread {
+                            adapter.updateAt(idx) { it.copy(content = content, streaming = false) }
+                            scrollBottom()
+                        }
+                    } else {
+                        runOnUiThread {
+                            adapter.add(ChatMessage(MsgType.ASSISTANT, content))
+                            scrollBottom()
+                        }
+                    }
                     history.put(JSONObject().apply {
                         put("role", "assistant")
                         put("content", content)
                     })
-                    runOnUiThread {
-                        adapter.updateLast(ChatMessage(false, content,
-                            toolSummary = if (toolLog.isEmpty()) null else toolLog.toString().trim()))
-                        scrollToBottom()
-                        busy = false
-                    }
+                    endAgent("")
                     return
                 }
 
-                // Có tool calls → đưa tin nhắn assistant với tool_calls vào history
-                val asstMsg = JSONObject().apply {
+                // Có tool calls → ghi assistant message + execute
+                val asst = JSONObject().apply {
                     put("role", "assistant")
-                    if (!reply.content.isNullOrBlank()) put("content", reply.content)
+                    if (!final.content.isNullOrBlank()) put("content", final.content)
                     else put("content", JSONObject.NULL)
                     put("tool_calls", JSONArray().apply {
-                        reply.toolCalls.forEach { tc ->
+                        final.toolCalls.forEach { tc ->
                             put(JSONObject().apply {
                                 put("id", tc.id)
                                 put("type", "function")
@@ -240,22 +335,56 @@ class AiChatActivity : AppCompatActivity() {
                         }
                     })
                 }
-                history.put(asstMsg)
+                history.put(asst)
 
-                // Execute từng tool call
-                for (tc in reply.toolCalls) {
-                    val result = try { AiTools.dispatch(tc.name, tc.argsJson, this) }
-                                 catch (e: Exception) { "ERR: ${e.message}" }
+                for (tc in final.toolCalls) {
+                    if (stopRequested) throw CancellationException()
 
-                    toolLog.append("🔧 ${tc.name}  ").append(result.take(80).replace("\n", " ⏎ ")).append("\n")
+                    setStatus("Bước $step — ${tc.name}")
+                    val toolIdx = runOnUiThreadSync {
+                        adapter.add(ChatMessage(
+                            MsgType.TOOL_CALL,
+                            content = "",
+                            toolName = tc.name,
+                            toolArgs = tc.argsJson,
+                            toolResult = "đang chạy…",
+                            toolOk = null
+                        ))
+                    }
+                    scrollBottom()
 
-                    // Cập nhật UI tạm thời
-                    val summary = toolLog.toString().trim()
+                    val result = try {
+                        AiTools.dispatch(tc.name, tc.argsJson, this)
+                    } catch (e: Exception) {
+                        "ERR: ${e.message}"
+                    }
+
+                    val isErr = result.startsWith("ERR") || result.contains("Permission denied", true)
                     runOnUiThread {
-                        adapter.updateLast(ChatMessage(false,
-                            reply.content ?: "Đang gọi ${reply.toolCalls.size} tool…",
-                            toolSummary = summary))
-                        scrollToBottom()
+                        adapter.updateAt(toolIdx) { it.copy(toolResult = result, toolOk = !isErr) }
+                        scrollBottom()
+                    }
+
+                    // Artifact nếu write_file tạo file html/ảnh/svg
+                    if (tc.name == "write_file" && !isErr) {
+                        try {
+                            val args = JSONObject(tc.argsJson)
+                            val path = args.optString("path", "")
+                            val mime = guessMime(path)
+                            if (mime != null) {
+                                runOnUiThread {
+                                    adapter.add(ChatMessage(
+                                        MsgType.ARTIFACT,
+                                        content = "",
+                                        toolName = File(path).name,
+                                        toolArgs = path,
+                                        artifactPath = path,
+                                        artifactMime = mime
+                                    ))
+                                    scrollBottom()
+                                }
+                            }
+                        } catch (_: Exception) {}
                     }
 
                     history.put(JSONObject().apply {
@@ -264,25 +393,107 @@ class AiChatActivity : AppCompatActivity() {
                         put("content", result)
                     })
                 }
-                // Vòng lặp tiếp: gửi lại cho AI với tool results
             }
 
-            // Quá maxIter
-            runOnUiThread {
-                adapter.updateLast(ChatMessage(false, "(đã vượt quá số vòng tool cho phép)",
-                    toolSummary = toolLog.toString().trim()))
-                busy = false
-            }
+            endAgent("Đã chạm giới hạn $MAX_STEPS bước — agent dừng để tránh lặp.")
+        } catch (ce: CancellationException) {
+            endAgent("Đã hủy.")
         } catch (e: Exception) {
             runOnUiThread {
-                adapter.updateLast(ChatMessage(false, "ERR: ${e.message}",
-                    toolSummary = if (toolLog.isEmpty()) null else toolLog.toString().trim()))
-                busy = false
+                adapter.add(ChatMessage(MsgType.ERROR, "ERR: ${e.message}"))
+                scrollBottom()
             }
+            endAgent("Lỗi.")
         }
     }
 
-    private fun scrollToBottom() {
-        recycler.post { recycler.scrollToPosition(adapter.itemCount - 1) }
+    private fun handleEvent(ev: AgentEvent) {
+        if (stopRequested) throw CancellationException()
+        when (ev) {
+            is AgentEvent.ThinkingDelta -> {
+                if (currentThinkingIdx < 0) {
+                    currentThinkingIdx = runOnUiThreadSync {
+                        adapter.add(ChatMessage(MsgType.THINKING, ev.text, streaming = true))
+                    }
+                    scrollBottom()
+                } else {
+                    val idx = currentThinkingIdx
+                    runOnUiThread {
+                        adapter.updateAt(idx) { it.copy(content = it.content + ev.text) }
+                    }
+                }
+            }
+
+            is AgentEvent.ContentDelta -> {
+                // Lần delta đầu → chốt thinking (đổi nhãn) và tạo assistant bubble
+                if (currentContentIdx < 0) {
+                    if (currentThinkingIdx >= 0) {
+                        val ti = currentThinkingIdx
+                        runOnUiThread { adapter.updateAt(ti) { it.copy(streaming = false) } }
+                    }
+                    currentContentIdx = runOnUiThreadSync {
+                        adapter.add(ChatMessage(MsgType.ASSISTANT, ev.text, streaming = true))
+                    }
+                    scrollBottom()
+                } else {
+                    val idx = currentContentIdx
+                    runOnUiThread {
+                        adapter.updateAt(idx) { it.copy(content = it.content + ev.text) }
+                        scrollBottom()
+                    }
+                }
+            }
+
+            is AgentEvent.ToolCallReady -> { /* Đã hiện khi execute; bỏ qua để tránh double */ }
+
+            is AgentEvent.ToolResult -> { /* Adapter đã update khi execute */ }
+
+            is AgentEvent.Phase -> setStatus(ev.label)
+
+            is AgentEvent.Err -> {
+                runOnUiThread {
+                    adapter.add(ChatMessage(MsgType.ERROR, ev.msg))
+                    scrollBottom()
+                }
+            }
+
+            AgentEvent.Done -> {}
+        }
     }
+
+    // ============================== HELPERS ==============================
+
+    private fun <T> runOnUiThreadSync(block: () -> T): T {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            return block()
+        }
+        var result: T? = null
+        val latch = java.util.concurrent.CountDownLatch(1)
+        runOnUiThread {
+            try { result = block() } finally { latch.countDown() }
+        }
+        latch.await()
+        @Suppress("UNCHECKED_CAST")
+        return result as T
+    }
+
+    private fun guessMime(path: String): String? {
+        val ext = File(path).extension.lowercase()
+        return when (ext) {
+            "html", "htm" -> "text/html"
+            "svg" -> "image/svg+xml"
+            "png", "jpg", "jpeg", "gif", "webp" -> "image/$ext"
+            "md", "markdown" -> "text/markdown"
+            "pdf" -> "application/pdf"
+            else -> null
+        }
+    }
+
+    private fun scrollBottom() {
+        runOnUiThread {
+            recycler.post { recycler.scrollToPosition(adapter.itemCount - 1) }
+        }
+    }
+
+    private fun toast(m: String) = Toast.makeText(this, m, Toast.LENGTH_SHORT).show()
 }
