@@ -39,14 +39,32 @@ class FileAdapter(
 
         // Nếu là package app trong Android/data → lấy icon từ PackageManager
         var appIconSet = false
-        if (item.isDirectory && item.name.matches(Regex("^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"))) {
+        if (item.isDirectory && item.name.contains('.') && !item.name.startsWith('.')) {
             try {
                 val pm = holder.itemView.context.packageManager
-                val drawable = pm.getApplicationIcon(item.name)
-                holder.icon.setImageDrawable(drawable)
-                holder.icon.clearColorFilter()
-                appIconSet = true
-            } catch (_: Exception) { /* không phải package đã cài → giữ icon folder */ }
+                var drawable: android.graphics.drawable.Drawable? = null
+                // Cách 1: getApplicationIcon
+                try { drawable = pm.getApplicationIcon(item.name) } catch (_: Exception) {}
+                // Cách 2: getApplicationInfo + loadIcon
+                if (drawable == null) {
+                    try {
+                        val info = pm.getApplicationInfo(item.name, 0)
+                        drawable = info.loadIcon(pm)
+                    } catch (_: Exception) {}
+                }
+                // Cách 3: getLaunchIntentForPackage → getActivityIcon
+                if (drawable == null) {
+                    try {
+                        val i = pm.getLaunchIntentForPackage(item.name)
+                        if (i != null) drawable = pm.getActivityIcon(i)
+                    } catch (_: Exception) {}
+                }
+                if (drawable != null) {
+                    holder.icon.setImageDrawable(drawable)
+                    holder.icon.clearColorFilter()
+                    appIconSet = true
+                }
+            } catch (_: Exception) {}
         }
 
         val (icoRes, tint) = when {

@@ -62,8 +62,18 @@ class RtonEditorActivity : AppCompatActivity() {
             info.text = "$filePath  ·  ${nodes.size} node  ·  RTON v1"
             dirty = false
         } catch (e: Exception) {
-            Toast.makeText(this, "Đọc RTON lỗi: ${e.message}", Toast.LENGTH_LONG).show()
-            info.text = "Lỗi: ${e.message}"
+            val msg = e.message ?: "unknown"
+            info.text = "Lỗi: ${msg.lines().first()}"
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("RTON parse lỗi")
+                .setMessage(msg)
+                .setPositiveButton("OK", null)
+                .setNeutralButton("Copy") { _, _ ->
+                    val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("err", msg))
+                    Toast.makeText(this, "Đã copy", Toast.LENGTH_SHORT).show()
+                }
+                .show()
         }
     }
 

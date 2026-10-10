@@ -1,5 +1,6 @@
 package com.anon.filemanager.rton
 
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStream
 
@@ -16,22 +17,37 @@ object RtonReader {
         } catch (e: Exception) { false }
     }
 
-    fun read(file: File): RtonValue = file.inputStream().buffered().use { readStream(it) }
+    fun read(file: File): RtonValue {
+        val bytes = file.readBytes()
+        try {
+            return readStream(ByteArrayInputStream(bytes))
+        } catch (e: Exception) {
+            val preview = bytes.take(64).joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }
+            val ascii = bytes.take(64).map { b ->
+                val c = b.toInt() and 0xFF
+                if (c in 32..126) c.toChar() else '.'
+            }.joinToString("")
+            throw RuntimeException("${e.message}\n\n64B hex:\n$preview\n\nASCII:\n$ascii")
+        }
+    }
 
     fun readStream(input: InputStream): RtonValue {
         val magic = ByteArray(4)
         if (input.read(magic) != 4) error("Không đủ dữ liệu")
         val magicStr = String(magic, Charsets.US_ASCII)
-        if (magicStr != "RTON") error("Không phải RTON: $magicStr")
+        if (magicStr != "RTON") error("Không phải RTON: '$magicStr' (hex: ${magic.joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }})")
 
         val version = readInt32LE(input)
-        // version 1 kỳ vọng. Một số bản có thể khác nhưng vẫn cùng layout.
+        if (version !in 1..10) error("Version bất thường: $version (0x${Integer.toHexString(version)})")
+
         val stringCount = readInt32LE(input)
-        if (stringCount < 0 || stringCount > 100000) error("String count bất thường: $stringCount")
+        if (stringCount < 0 || stringCount > 100000)
+            error("String count bất thường: $stringCount (0x${Integer.toHexString(stringCount)})")
 
         val strings = ArrayList<String>(stringCount)
         repeat(stringCount) {
             val len = readInt16LE(input)
+            if (len < 0 || len > 4096) error("String len bất thường: $len")
             val buf = ByteArray(len)
             var read = 0
             while (read < len) {
@@ -43,7 +59,6 @@ object RtonReader {
         }
 
         val root = readValue(input, strings)
-        // "DONE"
         val done = ByteArray(4)
         input.read(done)
         return root
@@ -114,7 +129,6 @@ object RtonReader {
             result = result or ((b.toLong() and 0x7F) shl shift)
             shift += 7
             if (b and 0x80 == 0) {
-                // sign extension
                 if (shift < 64 && (b and 0x40) != 0) result = result or (-1L shl shift)
                 return result
             }
