@@ -4,13 +4,13 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:fitsSystemWindows="true">
+    android:layout_height="match_parent">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
+        android:fitsSystemWindows="true"
         android:background="@drawable/rainbow_bg">
 
         <com.google.android.material.appbar.MaterialToolbar
@@ -18,12 +18,11 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="@drawable/rainbow_bar"
+            android:elevation="0dp"
             app:navigationIcon="@drawable/ic_menu_hamburger"
             app:title="AnonFiles"
-            app:titleTextColor="#FFFFFF"
-            app:subtitleTextColor="#D0FFFFFF"
-            app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge"
-            app:subtitleTextAppearance="@style/TextAppearance.Material3.BodySmall" />
+            app:titleTextColor="#1A1A2E"
+            app:subtitleTextColor="#666680" />
 
         <TextView
             android:id="@+id/permStatus"
@@ -38,28 +37,26 @@
             android:paddingBottom="7dp"
             android:textSize="12sp"
             android:textStyle="bold"
-            android:textColor="#FFC7E8"
+            android:textColor="#FF1493"
             android:background="@drawable/status_chip"
-            android:visibility="gone"
-            tools:visibility="visible"
-            xmlns:tools="http://schemas.android.com/tools" />
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/pathText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="4dp"
-            android:paddingStart="14dp"
-            android:paddingTop="11dp"
-            android:paddingEnd="14dp"
-            android:paddingBottom="11dp"
+            android:layout_marginStart="14dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="14dp"
+            android:layout_marginBottom="6dp"
+            android:paddingStart="16dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="12dp"
             android:textSize="13sp"
-            android:letterSpacing="0.02"
+            android:letterSpacing="0.01"
             android:background="@drawable/path_bar"
-            android:textColor="#E8D4FF"
+            android:textColor="#3A3A5C"
             android:maxLines="1"
             android:ellipsize="middle" />
 
@@ -68,9 +65,9 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:paddingStart="8dp"
+            android:paddingStart="6dp"
             android:paddingTop="4dp"
-            android:paddingEnd="8dp"
+            android:paddingEnd="6dp"
             android:clipToPadding="false"
             android:paddingBottom="24dp" />
     </LinearLayout>
@@ -80,9 +77,10 @@
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:layout_gravity="start"
-        android:background="#0F0524"
+        android:fitsSystemWindows="true"
+        android:background="#FFFFFF"
         app:headerLayout="@layout/drawer_header"
         app:menu="@menu/drawer_menu"
-        app:itemIconTint="#FF6EC7"
-        app:itemTextColor="#FFFFFF" />
+        app:itemIconTint="#FF1493"
+        app:itemTextColor="#1A1A2E" />
 </androidx.drawerlayout.widget.DrawerLayout>
