@@ -1,7 +1,6 @@
 package com.anon.filemanager
 
 import com.github.junrar.Archive
-import com.github.junrar.rarfile.FileHeader
 import net.lingala.zip4j.ZipFile
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
@@ -10,6 +9,7 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
+import java.io.InputStream
 
 object ArchiveReader {
 
@@ -48,7 +48,7 @@ object ArchiveReader {
                 result.add(ArchiveEntryItem(
                     name = entry.name,
                     size = entry.size,
-                    compressedSize = entry.size, // 7z không expose per-entry compressed size
+                    compressedSize = entry.size,
                     isDirectory = entry.isDirectory,
                     index = i++
                 ))
@@ -60,16 +60,19 @@ object ArchiveReader {
 
     private fun listRar(path: String): List<ArchiveEntryItem> {
         val result = mutableListOf<ArchiveEntryItem>()
-        Archive(File(path)).use { ar ->
-            ar.fileHeaders.forEachIndexed { i, h: FileHeader ->
+        val ar = Archive(File(path))
+        try {
+            ar.fileHeaders.forEachIndexed { i, h ->
                 result.add(ArchiveEntryItem(
-                    name = h.fileName,
+                    name = h.fileName ?: "",
                     size = h.fullUnpackSize,
                     compressedSize = h.fullPackSize,
                     isDirectory = h.isDirectory,
                     index = i
                 ))
             }
+        } finally {
+            ar.close()
         }
         return result.sortedWith(compareByDescending<ArchiveEntryItem> { it.isDirectory }.thenBy { it.name })
     }
@@ -97,26 +100,36 @@ object ArchiveReader {
         return result.sortedWith(compareByDescending<ArchiveEntryItem> { it.isDirectory }.thenBy { it.name })
     }
 
-    // Extract 1 entry ra file tạm để preview
     fun extractEntry(archivePath: String, entryName: String, outFile: File): Boolean {
         val lower = archivePath.lowercase()
         return try {
             when {
                 lower.endsWith(".zip") || lower.endsWith(".jar") -> {
-                    ZipFile(archivePath).getInputStream(entryName).use { input ->
+                    val zf = ZipFile(archivePath)
+                    val header = zf.getFileHeader(entryName) ?: return false
+                    zf.getInputStream(header).use { input ->
                         outFile.outputStream().use { input.copyTo(it) }
-                    }; true
+                    }
+                    true
                 }
                 lower.endsWith(".7z") -> {
                     SevenZFile(File(archivePath)).use { sz ->
                         var e = sz.nextEntry
                         while (e != null) {
                             if (e.name == entryName) {
-                                outFile.outputStream().use { sz.copyTo(it) }; return true
+                                outFile.outputStream().use { out ->
+                                    val buf = ByteArray(8192)
+                                    var n: Int
+                                    while (sz.read(buf).also { n = it } > 0) {
+                                        out.write(buf, 0, n)
+                                    }
+                                }
+                                return true
                             }
                             e = sz.nextEntry
                         }
-                    }; false
+                    }
+                    false
                 }
                 lower.endsWith(".tar.gz") || lower.endsWith(".tgz") -> {
                     FileInputStream(archivePath).use { fis ->
@@ -125,13 +138,15 @@ object ArchiveReader {
                                 var e = tar.nextTarEntry
                                 while (e != null) {
                                     if (e.name == entryName && !e.isDirectory) {
-                                        outFile.outputStream().use { tar.copyTo(it) }; return true
+                                        outFile.outputStream().use { out -> tar.copyTo(out) }
+                                        return true
                                     }
                                     e = tar.nextTarEntry
                                 }
                             }
                         }
-                    }; false
+                    }
+                    false
                 }
                 else -> false
             }

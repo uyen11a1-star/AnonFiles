@@ -26,6 +26,7 @@ class PreviewActivity : AppCompatActivity() {
     private lateinit var loadingText: TextView
     private lateinit var info: TextView
     private var filePath: String = ""
+    private var pdfAdapter: PdfPageAdapter? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -173,29 +174,10 @@ class PreviewActivity : AppCompatActivity() {
 
                 runOnUiThread {
                     info.text = "$filePath  ·  $pageCount trang"
-                    val adapter = PdfPageAdapter(pages) { idx, img, _ ->
-                        // Lazy render từng trang khi bind
-                        if (pages[idx] == null) {
-                            Thread {
-                                try {
-                                    synchronized(renderer) {
-                                        val page = renderer.openPage(idx)
-                                        val scale = 2 // render gấp 2 lần cho nét
-                                        val bmp = Bitmap.createBitmap(
-                                            page.width * scale,
-                                            page.height * scale,
-                                            Bitmap.Config.ARGB_8888
-                                        )
-                                        bmp.eraseColor(android.graphics.Color.WHITE)
-                                        page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                                        page.close()
-                                        pages[idx] = bmp
-                                        runOnUiThread { adapter.notifyItemChanged(idx) }
-                                    }
-                                } catch (e: Exception) { /* ignore */ }
-                            }.start()
-                        }
+                    val adapter = PdfPageAdapter(pages) { idx, _, _ ->
+                        renderPageLazy(renderer, pages, adapter0(), idx)
                     }
+                    pdfAdapter = adapter
                     pdfList.layoutManager = LinearLayoutManager(this)
                     pdfList.adapter = adapter
                     showPdf()
@@ -203,6 +185,35 @@ class PreviewActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 runOnUiThread { toast("Render PDF lỗi: ${e.message}") }
             }
+        }.start()
+    }
+
+    private fun adapter0(): PdfPageAdapter? = pdfAdapter
+
+    private fun renderPageLazy(
+        renderer: PdfRenderer,
+        pages: MutableList<Bitmap?>,
+        adapter: PdfPageAdapter?,
+        idx: Int
+    ) {
+        if (pages[idx] != null || adapter == null) return
+        Thread {
+            try {
+                synchronized(renderer) {
+                    val page = renderer.openPage(idx)
+                    val scale = 2
+                    val bmp = Bitmap.createBitmap(
+                        page.width * scale,
+                        page.height * scale,
+                        Bitmap.Config.ARGB_8888
+                    )
+                    bmp.eraseColor(android.graphics.Color.WHITE)
+                    page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    page.close()
+                    pages[idx] = bmp
+                    runOnUiThread { adapter.notifyItemChanged(idx) }
+                }
+            } catch (e: Exception) { /* ignore */ }
         }.start()
     }
 
