@@ -31,6 +31,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.navigation.NavigationView
+import com.anon.filemanager.rton.RtonEditorActivity
+import com.anon.filemanager.rton.RtonReader
 import rikka.shizuku.Shizuku
 import java.io.File
 
@@ -203,6 +205,7 @@ class MainActivity : AppCompatActivity() {
             item.isDirectory -> { currentPath = item.file.absolutePath; refresh() }
             item.isApk -> confirmInstall(item)
             item.isArchive -> startActivity(Intent(this, ArchivePreviewActivity::class.java).putExtra("path", item.file.absolutePath))
+            isRtonFile(item) -> openRtonEditor(item)
             item.isText -> openEditor(item)
             item.extension in setOf("png","jpg","jpeg","gif","webp","bmp","mp4","mkv","mp3","ogg","wav","pdf") ->
                 FileOps.openWith(this, item.file.absolutePath, mimeOf(item))
@@ -627,6 +630,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ============ HELPERS ============
+
+    private fun isRtonFile(item: FileItem): Boolean {
+        if (item.isDirectory) return false
+        val ext = item.extension
+        if (ext !in setOf("dat", "rton", "json5")) return false
+        return try {
+            val f = if (FileOps.isProtected(item.file.absolutePath)) {
+                FileOps.copyToCache(this, item.file.absolutePath) ?: return false
+            } else File(item.file.absolutePath)
+            RtonReader.isRton(f)
+        } catch (e: Exception) { false }
+    }
+
+    private fun openRtonEditor(item: FileItem) {
+        startActivity(Intent(this, RtonEditorActivity::class.java).putExtra("path", item.file.absolutePath))
+    }
 
     private fun goUp() {
         if (currentPath == "/storage/emulated/0") return

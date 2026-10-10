@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FAFAFE">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/rtonToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@drawable/rainbow_bar"
+        app:navigationIcon="@android:drawable/ic_menu_close_clear_cancel"
+        app:title="RTON Editor"
+        app:titleTextColor="#1A1A2E" />
+
+    <TextView
+        android:id="@+id/rtonInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="10dp"
+        android:background="#F0EFF7"
+        android:textSize="11sp"
+        android:textColor="#3A3A5C"
+        android:maxLines="2"
+        android:ellipsize="middle" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rtonRecycler"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingTop="4dp"
+        android:paddingBottom="20dp" />
+</LinearLayout>

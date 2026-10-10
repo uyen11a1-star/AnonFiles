@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/rton_save" android:title="Lưu"
+        android:icon="@android:drawable/ic_menu_save" android:showAsAction="always"/>
+    <item android:id="@+id/rton_search" android:title="Tìm key"
+        android:icon="@android:drawable/ic_menu_search" android:showAsAction="ifRoom"/>
+    <item android:id="@+id/rton_reload" android:title="Reload"
+        android:showAsAction="never"/>
+    <item android:id="@+id/rton_export_json" android:title="Export JSON"
+        android:showAsAction="never"/>
+</menu>
