@@ -13,18 +13,8 @@
         android:background="@drawable/rainbow_bar"
         app:navigationIcon="@android:drawable/ic_menu_revert"
         app:title="Preview"
-        app:titleTextColor="#1A1A2E" />
-
-    <TextView
-        android:id="@+id/previewInfo"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="10dp"
-        android:background="#F0EFF7"
-        android:textSize="11sp"
-        android:textColor="#3A3A5C"
-        android:maxLines="1"
-        android:ellipsize="middle" />
+        app:titleTextColor="#1A1A2E"
+        app:subtitleTextColor="#666680" />
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -43,9 +33,9 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="#EEEEEE"
-            android:paddingStart="8dp"
-            android:paddingTop="8dp"
-            android:paddingEnd="8dp"
+            android:paddingStart="6dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="6dp"
             android:paddingBottom="24dp"
             android:clipToPadding="false"
             android:visibility="gone" />

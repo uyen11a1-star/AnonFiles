@@ -173,7 +173,10 @@ object FileOps {
     // Copy file từ protected path ra temp để mở bằng app khác (APK install, media viewer...)
     fun copyToCache(ctx: Context, srcPath: String): File? {
         return try {
-            val tmp = File(ctx.cacheDir, File(srcPath).name)
+            // External app-specific dir — shell UID 2000 ghi được, cacheDir internal thì không
+            val cacheExt = ctx.getExternalFilesDir("cache") ?: ctx.cacheDir
+            if (!cacheExt.exists()) cacheExt.mkdirs()
+            val tmp = File(cacheExt, File(srcPath).name)
             if (isProtected(srcPath)) {
                 val real = ShizukuShell.translate(srcPath)
                 ShizukuShell.exec("cp ${ShizukuShell.quote(real)} ${ShizukuShell.quote(tmp.absolutePath)} 2>&1")

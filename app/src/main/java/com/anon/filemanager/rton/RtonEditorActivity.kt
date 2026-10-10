@@ -70,7 +70,9 @@ class RtonEditorActivity : AppCompatActivity() {
     private fun copyToLocalCache(): File {
         // File trong Android/data phải copy ra cache để đọc trực tiếp
         return if (FileOps.isProtected(filePath)) {
-            val f = File(cacheDir, File(filePath).name + ".rton")
+            val extCache = getExternalFilesDir("cache") ?: cacheDir
+            if (!extCache.exists()) extCache.mkdirs()
+            val f = File(extCache, File(filePath).name + ".rton")
             val real = com.anon.filemanager.ShizukuShell.translate(filePath)
             com.anon.filemanager.ShizukuShell.exec("cp ${com.anon.filemanager.ShizukuShell.quote(real)} ${com.anon.filemanager.ShizukuShell.quote(f.absolutePath)} 2>&1")
             if (!f.exists() || f.length() == 0L) error("Copy cache thất bại")
@@ -145,7 +147,9 @@ class RtonEditorActivity : AppCompatActivity() {
     private fun save() {
         if (!dirty) { Toast.makeText(this, "Không có thay đổi", Toast.LENGTH_SHORT).show(); return }
         try {
-            val tmp = File(cacheDir, "out_" + File(filePath).name)
+            val extCache = getExternalFilesDir("cache") ?: cacheDir
+            if (!extCache.exists()) extCache.mkdirs()
+            val tmp = File(extCache, "out_" + File(filePath).name)
             RtonWriter.write(tmp, root)
             if (FileOps.isProtected(filePath)) {
                 // Copy ngược lại qua shell

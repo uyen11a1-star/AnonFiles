@@ -24,7 +24,6 @@ class PreviewActivity : AppCompatActivity() {
     private lateinit var pdfList: RecyclerView
     private lateinit var loading: LinearLayout
     private lateinit var loadingText: TextView
-    private lateinit var info: TextView
     private var filePath: String = ""
     private var pdfAdapter: PdfPageAdapter? = null
 
@@ -38,11 +37,32 @@ class PreviewActivity : AppCompatActivity() {
         pdfList = findViewById(R.id.previewPdfList)
         loading = findViewById(R.id.previewLoading)
         loadingText = findViewById(R.id.previewLoadingText)
-        info = findViewById(R.id.previewInfo)
 
         toolbar.subtitle = File(filePath).name
         toolbar.setNavigationOnClickListener { finish() }
-        info.text = filePath
+        toolbar.inflateMenu(R.menu.preview_menu)
+        toolbar.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.preview_edit -> {
+                    startActivity(android.content.Intent(this, com.anon.filemanager.TextEditorActivity::class.java)
+                        .putExtra("path", filePath))
+                    true
+                }
+                R.id.preview_fullscreen -> {
+                    toggleFullscreen()
+                    true
+                }
+                R.id.preview_open_with -> {
+                    com.anon.filemanager.FileOps.openWith(this, filePath, "*/*")
+                    true
+                }
+                R.id.preview_reload -> {
+                    recreate()
+                    true
+                }
+                else -> false
+            }
+        }
 
         web.settings.javaScriptEnabled = true
         web.settings.loadWithOverviewMode = true
@@ -154,7 +174,7 @@ class PreviewActivity : AppCompatActivity() {
                 </head><body><pre>$escaped</pre></body></html>
             """.trimIndent()
             web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
-            info.text = "$filePath  ·  ${txt.length} ký tự  ·  ${txt.lines().size} dòng"
+            toolbar.subtitle = "${File(filePath).name}  ·  ${txt.length} ký tự"
             showWeb()
         } catch (e: Exception) { toast("Lỗi: ${e.message}") }
     }
@@ -173,7 +193,7 @@ class PreviewActivity : AppCompatActivity() {
                 repeat(pageCount) { pages.add(null) }
 
                 runOnUiThread {
-                    info.text = "$filePath  ·  $pageCount trang"
+                    toolbar.subtitle = "${File(filePath).name}  ·  $pageCount trang"
                     val adapter = PdfPageAdapter(pages) { idx, _, _ ->
                         renderPageLazy(renderer, pages, adapter0(), idx)
                     }
@@ -215,6 +235,19 @@ class PreviewActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) { /* ignore */ }
         }.start()
+    }
+
+    private var fullscreen = false
+    private fun toggleFullscreen() {
+        fullscreen = !fullscreen
+        val controller = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+        if (fullscreen) {
+            controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior =
+                androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            controller.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        }
     }
 
     private fun toast(m: String) = Toast.makeText(this, m, Toast.LENGTH_SHORT).show()

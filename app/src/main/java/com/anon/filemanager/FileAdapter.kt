@@ -37,6 +37,18 @@ class FileAdapter(
         val item = items[position]
         holder.name.text = item.name
 
+        // Nếu là package app trong Android/data → lấy icon từ PackageManager
+        var appIconSet = false
+        if (item.isDirectory && item.name.matches(Regex("^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"))) {
+            try {
+                val pm = holder.itemView.context.packageManager
+                val drawable = pm.getApplicationIcon(item.name)
+                holder.icon.setImageDrawable(drawable)
+                holder.icon.clearColorFilter()
+                appIconSet = true
+            } catch (_: Exception) { /* không phải package đã cài → giữ icon folder */ }
+        }
+
         val (icoRes, tint) = when {
             item.isDirectory -> android.R.drawable.ic_menu_view to 0xFFFF1493.toInt()
             item.isApk -> android.R.drawable.ic_menu_upload to 0xFF06B6D4.toInt()
@@ -47,8 +59,10 @@ class FileAdapter(
             item.extension in setOf("mp3","ogg","wav","flac","m4a") -> android.R.drawable.ic_lock_silent_mode_off to 0xFFEC4899.toInt()
             else -> android.R.drawable.ic_menu_save to 0xFF8888A0.toInt()
         }
-        holder.icon.setImageResource(icoRes)
-        holder.icon.setColorFilter(tint)
+        if (!appIconSet) {
+            holder.icon.setImageResource(icoRes)
+            holder.icon.setColorFilter(tint)
+        }
 
         holder.meta.text = if (item.isDirectory) "Folder"
             else "${fmtSize(item.size)}  ·  ${fmtDate(item.lastModified)}"
