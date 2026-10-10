@@ -8,14 +8,10 @@ object ShizukuShell {
 
     private var cachedMethod: Method? = null
 
-    // Dịch FUSE path -> underlying raw path để bypass scoped storage
-    // /storage/emulated/0/... -> /data/media/0/...
-    fun translate(path: String): String {
-        return path
-            .replace("/storage/emulated/0/", "/data/media/0/")
-            .replace("/storage/self/primary/", "/data/media/0/")
-            .replace("/sdcard/", "/data/media/0/")
-    }
+    // FUSE path /storage/emulated/0/... hoạt động với shell UID 2000
+    // (group ext_data_rw 1078). Raw path /data/media/0 bị kernel chặn.
+    // Giữ nguyên đường dẫn, không dịch.
+    fun translate(path: String): String = path
 
     fun isRunning(): Boolean = try { Shizuku.pingBinder() } catch (e: Throwable) { false }
 
@@ -27,7 +23,6 @@ object ShizukuShell {
         if (cachedMethod != null) return cachedMethod
         return try {
             val cls = Class.forName("rikka.shizuku.Shizuku")
-            // Signature đúng: newProcess(String[] cmd, String[] env, String dir)
             val m = cls.getDeclaredMethod(
                 "newProcess",
                 Array<String>::class.java,
@@ -38,7 +33,6 @@ object ShizukuShell {
             cachedMethod = m
             m
         } catch (e: Throwable) {
-            // Fallback: thử signature với File
             try {
                 val cls = Class.forName("rikka.shizuku.Shizuku")
                 val m = cls.getDeclaredMethod(
@@ -57,7 +51,7 @@ object ShizukuShell {
     fun exec(cmd: String): String {
         if (!isRunning()) return "ERR: Shizuku chưa chạy"
         if (!isGranted()) return "ERR: Chưa cấp quyền Shizuku"
-        val method = findMethod() ?: return "ERR: Shizuku API không tương thích — cần Shizuku v13.1.5+"
+        val method = findMethod() ?: return "ERR: Shizuku API không tương thích"
         return try {
             val proc = method.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
             val out = proc.inputStream.bufferedReader().use { it.readText() }
