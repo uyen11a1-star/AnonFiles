@@ -2,6 +2,7 @@ package com.anon.filemanager
 
 import android.content.pm.PackageManager
 import rikka.shizuku.Shizuku
+import java.lang.reflect.Method
 
 object ShizukuShell {
 
@@ -15,7 +16,15 @@ object ShizukuShell {
         if (!isRunning()) return "ERR: Shizuku chưa chạy"
         if (!isGranted()) return "ERR: Chưa cấp quyền Shizuku"
         return try {
-            val proc = Shizuku.newProcess(arrayOf("sh", "-c", cmd), null, null)
+            val cls = Class.forName("rikka.shizuku.Shizuku")
+            val m: Method = cls.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                Array<String>::class.java
+            )
+            m.isAccessible = true
+            val proc = m.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
             val out = proc.inputStream.bufferedReader().use { it.readText() }
             val err = proc.errorStream.bufferedReader().use { it.readText() }
             proc.waitFor()
