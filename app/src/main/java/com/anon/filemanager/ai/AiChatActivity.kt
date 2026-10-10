@@ -103,6 +103,13 @@ class AiChatActivity : AppCompatActivity() {
                 } else {
                     runBashFromChat(code)
                 }
+            },
+            onFixArtifact = { path, report ->
+                if (busy) {
+                    toast("Agent đang chạy — thử lại sau")
+                } else {
+                    sendFixRequest(path, report)
+                }
             }
         )
         recycler.layoutManager = LinearLayoutManager(this)
@@ -515,6 +522,20 @@ class AiChatActivity : AppCompatActivity() {
     }
 
     // ============================== HELPERS ==============================
+
+    private fun sendFixRequest(path: String, report: String) {
+        val msg = """
+Artifact dưới đây có lỗi hiển thị:
+Đường dẫn: $path
+Vấn đề phát hiện:
+$report
+
+Hãy đọc file, tìm nguyên nhân, sửa file và ghi lại. Sau khi sửa xong, xác nhận lại nội dung file.
+""".trimIndent()
+        input.setText(msg)
+        // Auto send
+        sendCurrent()
+    }
 
     private fun runBashFromChat(code: String) {
         val idx = runOnUiThreadSync {
