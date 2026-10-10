@@ -49,6 +49,44 @@
                 android:maxLines="1"
                 android:ellipsize="middle" />
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/artHealthDot"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="●"
+            android:textSize="12sp"
+            android:textColor="#FBBF24"
+            android:paddingStart="6dp" />
+    </LinearLayout>
+
+    <!-- Banner cảnh báo (health check fail) -->
+    <LinearLayout
+        android:id="@+id/artHealthBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginTop="8dp"
+        android:padding="10dp"
+        android:background="#FEF2F2"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/artHealthText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#B91C1C"
+            android:textSize="12sp"
+            android:fontFamily="monospace" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/artHealthFix"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:text="Yêu cầu AI sửa"
+            android:textColor="#B91C1C" />
     </LinearLayout>
 
     <!-- WebView cho HTML / SVG / MD -->

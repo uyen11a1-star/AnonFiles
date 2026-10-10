@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
+    android:orientation="vertical"
     android:gravity="start"
     android:paddingTop="4dp"
     android:paddingBottom="4dp">
@@ -21,4 +21,71 @@
         android:textColor="#1A1A2E"
         android:textSize="14sp"
         android:textIsSelectable="true" />
+
+    <!-- Live preview khi AI đang stream code HTML -->
+    <LinearLayout
+        android:id="@+id/livePreviewBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginTop="6dp"
+        android:padding="8dp"
+        android:background="#F5F5FF"
+        android:elevation="1dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/livePreviewDot"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="●"
+                android:textColor="#FBBF24"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/livePreviewLabel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:text="Live preview — đang viết…"
+                android:textColor="#7C3AED"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace" />
+
+            <TextView
+                android:id="@+id/livePreviewHealth"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="#B91C1C"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <WebView
+            android:id="@+id/livePreviewWeb"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:layout_marginTop="6dp"
+            android:background="#FFFFFF" />
+
+        <TextView
+            android:id="@+id/livePreviewErrors"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#B91C1C"
+            android:textSize="11sp"
+            android:fontFamily="monospace"
+            android:visibility="gone" />
+    </LinearLayout>
 </LinearLayout>
