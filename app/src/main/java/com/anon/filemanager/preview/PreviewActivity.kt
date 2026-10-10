@@ -20,6 +20,7 @@ import java.io.File
 
 class PreviewActivity : AppCompatActivity() {
 
+    private lateinit var toolbar: MaterialToolbar
     private lateinit var web: WebView
     private lateinit var pdfList: RecyclerView
     private lateinit var loading: LinearLayout
@@ -32,7 +33,7 @@ class PreviewActivity : AppCompatActivity() {
         setContentView(R.layout.activity_preview)
 
         filePath = intent.getStringExtra("path") ?: run { finish(); return }
-        val toolbar: MaterialToolbar = findViewById(R.id.previewToolbar)
+        toolbar = findViewById(R.id.previewToolbar)
         web = findViewById(R.id.previewWeb)
         pdfList = findViewById(R.id.previewPdfList)
         loading = findViewById(R.id.previewLoading)
