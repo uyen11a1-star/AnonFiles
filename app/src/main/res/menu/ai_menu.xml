@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/ai_clear" android:title="Xóa hội thoại"
+        android:icon="@android:drawable/ic_menu_delete" android:showAsAction="ifRoom"/>
+    <item android:id="@+id/ai_settings" android:title="Cấu hình"
+        android:icon="@android:drawable/ic_menu_manage" android:showAsAction="ifRoom"/>
+</menu>

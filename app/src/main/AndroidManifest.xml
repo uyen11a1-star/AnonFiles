@@ -28,7 +28,8 @@
         android:roundIcon="@drawable/ic_launcher"
         android:theme="@style/Theme.AnonFiles"
         android:requestLegacyExternalStorage="true"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -50,6 +51,10 @@
         <activity android:name=".preview.PreviewActivity"
             android:exported="false"
             android:label="Preview" />
+        <activity android:name=".ai.AiChatActivity"
+            android:exported="false"
+            android:label="AI Chat"
+            android:windowSoftInputMode="adjustResize" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

@@ -31,6 +31,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.navigation.NavigationView
+import com.anon.filemanager.ai.AiChatActivity
 import com.anon.filemanager.crypto.CryptoHelper
 import com.anon.filemanager.preview.PreviewActivity
 import com.anon.filemanager.rton.RtonEditorActivity
@@ -120,6 +121,10 @@ class MainActivity : AppCompatActivity() {
         toolbar.inflateMenu(R.menu.toolbar_menu)
         toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                R.id.action_ai -> {
+                    startActivity(Intent(this, AiChatActivity::class.java))
+                    true
+                }
                 R.id.action_new_folder -> { promptNewFolder(); true }
                 R.id.action_new_file -> { promptNewFile(); true }
                 R.id.action_search -> { promptSearch(); true }
