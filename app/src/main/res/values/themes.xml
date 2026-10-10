@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AnonFiles" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:statusBarColor">#1A2028</item>
+        <item name="android:navigationBarColor">#0F1418</item>
+    </style>
+</resources>
