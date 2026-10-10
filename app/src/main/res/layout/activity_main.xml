@@ -4,7 +4,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -18,28 +19,48 @@
             android:layout_height="?attr/actionBarSize"
             android:background="@drawable/rainbow_bar"
             app:navigationIcon="@drawable/ic_menu_hamburger"
-            app:title="AnonFiles ✦"
+            app:title="AnonFiles"
             app:titleTextColor="#FFFFFF"
-            app:subtitleTextColor="#E0FFFFFF" />
+            app:subtitleTextColor="#D0FFFFFF"
+            app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge"
+            app:subtitleTextAppearance="@style/TextAppearance.Material3.BodySmall" />
 
-        <TextView android:id="@+id/permStatus"
-            android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/permStatus"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="10dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="16dp"
+            android:paddingStart="14dp"
+            android:paddingTop="7dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="7dp"
             android:textSize="12sp"
             android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            android:background="#50000000" />
+            android:textColor="#FFC7E8"
+            android:background="@drawable/status_chip"
+            android:visibility="gone"
+            tools:visibility="visible"
+            xmlns:tools="http://schemas.android.com/tools" />
 
-        <TextView android:id="@+id/pathText"
+        <TextView
+            android:id="@+id/pathText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="10dp"
-            android:padding="12dp"
-            android:textSize="12sp"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginBottom="4dp"
+            android:paddingStart="14dp"
+            android:paddingTop="11dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="11dp"
+            android:textSize="13sp"
+            android:letterSpacing="0.02"
             android:background="@drawable/path_bar"
-            android:textColor="#FFD1F5"
-            android:maxLines="2"
+            android:textColor="#E8D4FF"
+            android:maxLines="1"
             android:ellipsize="middle" />
 
         <androidx.recyclerview.widget.RecyclerView
@@ -48,9 +69,10 @@
             android:layout_height="0dp"
             android:layout_weight="1"
             android:paddingStart="8dp"
+            android:paddingTop="4dp"
             android:paddingEnd="8dp"
             android:clipToPadding="false"
-            android:paddingBottom="20dp" />
+            android:paddingBottom="24dp" />
     </LinearLayout>
 
     <com.google.android.material.navigation.NavigationView

@@ -180,13 +180,17 @@ class MainActivity : AppCompatActivity() {
     private fun updateStatusBar() {
         val ok = hasAllFiles()
         val sh = ShizukuShell.isGranted()
-        val txt = buildString {
-            append(if (ok) "✦ Files: OK" else "✘ Files: chưa cấp")
-            append("   ·   ")
-            append(if (sh) "✦ Shizuku: OK" else "✘ Shizuku: chưa cấp")
+        if (ok && sh) {
+            permStatus.visibility = android.view.View.GONE
+            return
         }
-        permStatus.text = txt
-        permStatus.setTextColor(if (ok && sh) 0xFF6EE7FF.toInt() else 0xFFFF6EC7.toInt())
+        permStatus.visibility = android.view.View.VISIBLE
+        val txt = buildString {
+            if (!ok && !sh) append("Cần quyền Files + Shizuku")
+            else if (!ok) append("Cần cấp quyền Files")
+            else append("Cần cấp quyền Shizuku")
+        }
+        permStatus.text = "⚠ $txt"
         permStatus.setOnClickListener {
             if (!ok) requestAllFiles()
             else if (!sh) requestShizuku()
