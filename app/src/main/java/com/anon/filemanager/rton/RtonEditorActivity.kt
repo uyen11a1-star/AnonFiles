@@ -64,7 +64,7 @@ class RtonEditorActivity : AppCompatActivity() {
         } catch (e: Exception) {
             val msg = e.message ?: "unknown"
             info.text = "Lỗi: ${msg.lines().first()}"
-            androidx.appcompat.app.AlertDialog.Builder(this)
+            val builder = androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("RTON parse lỗi")
                 .setMessage(msg)
                 .setPositiveButton("OK", null)
@@ -73,7 +73,15 @@ class RtonEditorActivity : AppCompatActivity() {
                     cm.setPrimaryClip(android.content.ClipData.newPlainText("err", msg))
                     Toast.makeText(this, "Đã copy", Toast.LENGTH_SHORT).show()
                 }
-                .show()
+            if (msg.contains("RTON mới")) {
+                builder.setNegativeButton("Mở web editor") { _, _ ->
+                    try {
+                        startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://pvsz2.ru/editor/en")))
+                    } catch (_: Exception) {}
+                }
+            }
+            builder.show()
         }
     }
 

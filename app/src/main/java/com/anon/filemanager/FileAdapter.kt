@@ -59,6 +59,16 @@ class FileAdapter(
                         if (i != null) drawable = pm.getActivityIcon(i)
                     } catch (_: Exception) {}
                 }
+                // Cách 4: queryIntentActivities MAIN/LAUNCHER
+                if (drawable == null) {
+                    try {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_MAIN)
+                            .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                            .setPackage(item.name)
+                        val list = pm.queryIntentActivities(intent, 0)
+                        if (list.isNotEmpty()) drawable = list[0].loadIcon(pm)
+                    } catch (_: Exception) {}
+                }
                 if (drawable != null) {
                     holder.icon.setImageDrawable(drawable)
                     holder.icon.clearColorFilter()

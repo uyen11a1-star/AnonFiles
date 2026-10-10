@@ -40,27 +40,47 @@ object RtonReader {
         val version = readInt32LE(input)
         if (version !in 1..10) error("Version bất thường: $version (0x${Integer.toHexString(version)})")
 
-        val stringCount = readInt32LE(input)
+        // Peek byte để phát hiện định dạng RTON cũ vs mới:
+        //  - Cũ: byte đầu = low byte của string count (int32 LE) → thường 0x00-0xFF, hiếm khi ≥0x80 vì
+        //         count thường < 256
+        //  - Mới: byte đầu là tag string "0x90" hoặc tag khác ≥0x80
+        val buffered = if (input is java.io.BufferedInputStream) input
+                       else java.io.BufferedInputStream(input)
+        buffered.mark(8)
+        val peek = buffered.read()
+        buffered.reset()
+        if (peek >= 0x80) {
+            throw RuntimeException(
+                "Định dạng RTON mới (RTON-NL / inline string).\n" +
+                "App chưa hỗ trợ định dạng này.\n\n" +
+                "Cách xử lý:\n" +
+                "• Dùng MT Manager (đã hỗ trợ sẵn)\n" +
+                "• Hoặc dùng web editor: pvsz2.ru/editor/en\n" +
+                "• Hoặc gửi file mẫu cho dev để cập nhật parser"
+            )
+        }
+
+        val stringCount = readInt32LE(buffered)
         if (stringCount < 0 || stringCount > 100000)
             error("String count bất thường: $stringCount (0x${Integer.toHexString(stringCount)})")
 
         val strings = ArrayList<String>(stringCount)
         repeat(stringCount) {
-            val len = readInt16LE(input)
+            val len = readInt16LE(buffered)
             if (len < 0 || len > 4096) error("String len bất thường: $len")
             val buf = ByteArray(len)
             var read = 0
             while (read < len) {
-                val n = input.read(buf, read, len - read)
+                val n = buffered.read(buf, read, len - read)
                 if (n < 0) error("String table cắt ngang")
                 read += n
             }
             strings.add(String(buf, Charsets.UTF_8))
         }
 
-        val root = readValue(input, strings)
+        val root = readValue(buffered, strings)
         val done = ByteArray(4)
-        input.read(done)
+        buffered.read(done)
         return root
     }
 
