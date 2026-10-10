@@ -247,8 +247,11 @@ class RtonEditorActivity : AppCompatActivity() {
             val buf = ByteArray(4096)
             var read = 0
             srcFile.inputStream().use { ins ->
-                var n: Int
-                while (read < 4096 && ins.read(buf, read, 4096 - read).also { n = it } > 0) read += n
+                while (read < 4096) {
+                    val n = ins.read(buf, read, 4096 - read)
+                    if (n <= 0) break
+                    read += n
+                }
             }
             val bytes = buf.copyOf(read)
 
