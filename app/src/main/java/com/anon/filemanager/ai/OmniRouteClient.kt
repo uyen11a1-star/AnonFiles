@@ -10,9 +10,10 @@ import java.net.URL
 
 object OmniRouteClient {
 
-    var baseUrl: String = com.anon.filemanager.BuildConfig.SHARED_SERVER_URL
-    var apiKey: String = com.anon.filemanager.BuildConfig.SHARED_SERVER_KEY
-    var model: String = com.anon.filemanager.BuildConfig.SHARED_SERVER_MODEL
+    // Default — shared build sẽ được set qua reflection sau khi cài
+    var baseUrl: String = "http://127.0.0.1:20128"
+    var apiKey: String = ""
+    var model: String = "gpt-4o-mini"
 
     val isSharedBuild: Boolean
         get() = baseUrl.isNotBlank() &&
@@ -27,7 +28,6 @@ object OmniRouteClient {
         val toolCalls: List<ToolCall>
     )
 
-    // Streaming chat — gọi onEvent cho mỗi delta. Chạy trên worker thread.
     fun chatStream(
         messages: JSONArray,
         tools: JSONArray?,
@@ -65,7 +65,7 @@ object OmniRouteClient {
 
         val contentBuf = StringBuilder()
         val thinkBuf = StringBuilder()
-        val toolCalls = LinkedHashMap<Int, JSONObject>() // index → partial
+        val toolCalls = LinkedHashMap<Int, JSONObject>()
 
         BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { reader ->
             while (true) {
@@ -80,7 +80,6 @@ object OmniRouteClient {
                 if (choices.length() == 0) continue
                 val delta = choices.getJSONObject(0).optJSONObject("delta") ?: continue
 
-                // Thinking (deepseek-reasoner / một số provider trả field này)
                 val reason = delta.optString("reasoning_content", "")
                 if (reason.isNotEmpty()) {
                     thinkBuf.append(reason)
@@ -93,7 +92,6 @@ object OmniRouteClient {
                     onEvent(AgentEvent.ContentDelta(content))
                 }
 
-                // Tool calls — Gom theo index
                 val tcs = delta.optJSONArray("tool_calls")
                 if (tcs != null) {
                     for (i in 0 until tcs.length()) {
@@ -132,7 +130,6 @@ object OmniRouteClient {
             )
         }
 
-        // Emit ToolCallReady sau khi args hoàn chỉnh
         calls.forEach { onEvent(AgentEvent.ToolCallReady(it.name, it.argsJson)) }
 
         return Final(
@@ -142,7 +139,6 @@ object OmniRouteClient {
         )
     }
 
-    // Non-streaming fallback
     fun chat(messages: JSONArray, tools: JSONArray?): Final {
         val url = URL("$baseUrl/v1/chat/completions")
         val conn = (url.openConnection() as HttpURLConnection).apply {
